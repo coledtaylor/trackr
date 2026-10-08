@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Trackr</title>
+    <link rel="stylesheet" href="shared/work.css" />
+    <link rel="stylesheet" href="panel.css" />
+    <script type="module" src="panel.js"></script>
+  </head>
+  <body>
+    <div class="panel">
+      <section id="browse" class="browse" aria-label="Trackr">
+        <label class="find">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <input id="find" type="search" autocomplete="off" spellcheck="false" aria-label="Find a task" placeholder="Find by title or ID, like TC-123" />
+        </label>
+        <div id="list" class="scroll"></div>
+      </section>
+      <section id="new" class="new" aria-label="New task" hidden></section>
+    </div>
+    <div id="toast" class="work-toast" role="status" hidden></div>
+  </body>
+</html>

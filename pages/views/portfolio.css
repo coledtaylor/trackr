@@ -1,0 +1,643 @@
+/* The portfolio view. Sizes follow the v2 board; narrow panes reflow by the
+ * width of the view, not the window, since a tab can sit in a split. */
+
+.view-portfolio {
+  container-type: inline-size;
+}
+
+.view-portfolio h2 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.tone-accent {
+  color: var(--helm-accent-text);
+}
+
+.tone-warn {
+  color: var(--helm-warn);
+}
+
+.tone-success {
+  color: var(--helm-success);
+}
+
+/* Header */
+
+.pf-head {
+  padding: 20px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-bottom: 1px solid var(--helm-border);
+}
+
+.pf-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.pf-key.work-tile {
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pf-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pf-name-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pf-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-action {
+  gap: 6px;
+}
+
+.pf-none {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pf-none .quiet {
+  margin: 0;
+}
+
+.pf-name h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-tag {
+  height: 16px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid var(--helm-border-strong);
+  border-radius: 8px;
+  font-size: 10.5px;
+  color: var(--helm-fg-muted);
+}
+
+.pf-sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--helm-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.pf-sub .work-mono {
+  font-size: 11.5px;
+}
+
+/* Five to a row when there is room, as the design has them; never wider than
+ * a fifth, so one project does not stretch across the page. */
+.pf-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(168px, calc((100% - 32px) / 5)), 1fr));
+  gap: 8px;
+}
+
+.pf-card {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 11px 12px 10px;
+  border: 1px solid var(--helm-border);
+  border-radius: var(--helm-radius);
+  background: var(--helm-surface-raised);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 9px;
+}
+
+.pf-card:hover {
+  border-color: var(--helm-border-strong);
+}
+
+.pf-card-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.pf-card-count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pf-big {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-unit {
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+}
+
+.pf-doing {
+  font-size: 11px;
+  color: var(--helm-accent-text);
+  white-space: nowrap;
+}
+
+.pf-place {
+  font-size: 10.5px;
+  color: var(--helm-fg-subtle);
+}
+
+/* Body */
+
+.pf-body {
+  padding: 18px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.pf-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pf-stat {
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--helm-radius);
+  background: var(--helm-surface-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pf-stat .work-cap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-stat-row {
+  min-height: 28px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pf-stat-row svg {
+  flex-shrink: 0;
+}
+
+.pf-stat-value {
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-stat-note {
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+}
+
+.pf-stat-icon {
+  display: flex;
+  margin-bottom: 2px;
+  color: var(--helm-warn);
+}
+
+.pf-sessions {
+  display: flex;
+  padding: 0 0 2px 4px;
+}
+
+.pf-session {
+  width: 24px;
+  height: 24px;
+  margin-left: -4px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--helm-surface-raised);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--helm-accent) 22%, var(--helm-surface-raised));
+  color: var(--helm-accent-text);
+}
+
+.pf-session-more {
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.pf-week {
+  height: 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.pf-week span {
+  width: 9px;
+  border-radius: 2px 2px 0 0;
+}
+
+/* Epics across projects */
+
+.pf-epics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pf-epics-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.pf-legend {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+}
+
+.pf-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pf-pip {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 1.5px solid;
+  border-radius: 2px;
+}
+
+.pf-matrix {
+  --matrix-columns: minmax(220px, 2.3fr) repeat(var(--projects), minmax(76px, 1fr)) 52px;
+  --matrix-min: calc(220px + var(--projects) * 76px + 52px + 28px);
+  border: 1px solid var(--helm-border);
+  border-radius: var(--helm-radius);
+  overflow-x: auto;
+}
+
+.pf-matrix-row {
+  min-width: var(--matrix-min);
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: var(--matrix-columns);
+}
+
+.pf-matrix-head {
+  height: 34px;
+  align-items: center;
+  padding: 0 14px;
+  background: var(--helm-surface-sunken);
+}
+
+.pf-col {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  color: var(--helm-fg-muted);
+}
+
+.pf-total {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.pf-epic .pf-total {
+  font-size: 11px;
+  color: var(--helm-fg-muted);
+}
+
+.pf-epic {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 0;
+  border-top: 1px solid var(--helm-border);
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  align-items: stretch;
+}
+
+.pf-epic:hover {
+  background: var(--helm-hover);
+}
+
+.pf-epic.is-finished {
+  opacity: 0.62;
+}
+
+.pf-epic-main {
+  min-width: 0;
+  padding: 8px 14px 8px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+}
+
+.pf-epic-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-epic-id.work-id {
+  font-size: 11px;
+}
+
+.pf-epic-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 22px;
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+}
+
+.pf-bar {
+  width: 120px;
+  height: 4px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--helm-border-strong);
+  overflow: hidden;
+}
+
+.pf-bar > span {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.pf-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-left: 1px solid var(--helm-border);
+}
+
+.pf-cell-label {
+  display: none;
+}
+
+.pf-dot {
+  color: var(--helm-border-strong);
+}
+
+.pf-home {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--helm-fg-muted);
+}
+
+.pf-pips {
+  max-width: 66px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+
+.pf-more {
+  font-size: 10px;
+  line-height: 8px;
+  color: var(--helm-fg-subtle);
+}
+
+.pf-none {
+  padding: 2px 0;
+}
+
+/* In progress and waiting */
+
+.pf-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.pf-box {
+  min-width: 0;
+  padding: 12px 8px 8px;
+  border-radius: var(--helm-radius);
+  background: var(--helm-surface-raised);
+  display: flex;
+  flex-direction: column;
+}
+
+.pf-box-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 8px;
+}
+
+.pf-box-empty {
+  padding: 2px 6px 6px;
+}
+
+.pf-row {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: var(--helm-radius);
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pf-row:hover {
+  background: var(--helm-active);
+}
+
+.pf-row-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.pf-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pf-row-line {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-row-line .work-id {
+  font-size: 11px;
+}
+
+.pf-row-meta {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+}
+
+.pf-waits-arrow {
+  display: flex;
+  margin-left: 4px;
+}
+
+.pf-blocker {
+  color: var(--helm-fg);
+}
+
+/* Narrow panes */
+
+@container (max-width: 760px) {
+  .pf-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pf-lists {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 640px) {
+  .pf-head {
+    padding: 16px 16px 14px;
+  }
+
+  .pf-body {
+    padding: 14px 16px 24px;
+  }
+
+  .pf-legend {
+    margin-left: 0;
+  }
+
+  /* The matrix becomes a list: each epic, then its projects under it. */
+  .pf-matrix-head {
+    display: none;
+  }
+
+  .pf-matrix-row {
+    min-width: 0;
+  }
+
+  .pf-epic {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    padding: 10px 14px;
+  }
+
+  .pf-epic-main {
+    flex: 1 1 100%;
+    padding: 0;
+  }
+
+  .pf-cell {
+    padding: 0;
+    border-left: 0;
+    background: none !important;
+  }
+
+  .pf-cell.is-empty {
+    display: none;
+  }
+
+  .pf-cell-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--helm-fg-muted);
+  }
+
+  .pf-epic .pf-total {
+    margin-left: auto;
+  }
+}
+
+@container (max-width: 420px) {
+  .pf-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pf-bar {
+    width: 72px;
+  }
+}

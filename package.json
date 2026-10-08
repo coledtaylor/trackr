@@ -1,0 +1,26 @@
+{
+  "name": "trackr",
+  "version": "0.1.0",
+  "description": "Work tracking for Helm: portfolios, projects, epics and tasks in one SQLite file, with tools for Claude Code sessions.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coledtaylor/trackr.git"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=dot \"test/**/*.test.mjs\"",
+    "typecheck": "tsc -p . && tsc -p tsconfig.pages.json",
+    "validate": "helm-plugin validate",
+    "check": "npm run typecheck && npm test && npm run validate"
+  },
+  "devDependencies": {
+    "@coledtaylor/helm-plugin-sdk": "^1.2.0",
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

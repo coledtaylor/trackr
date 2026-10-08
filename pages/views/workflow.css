@@ -1,0 +1,483 @@
+/* A portfolio's workflow: statuses on the left, priorities, projects and the
+ * portfolio on the right; one column when the pane is narrow. Rows sit in a
+ * box on the raised card, as the v2 board draws them; an editor opens in the
+ * row's place. */
+
+.view-workflow {
+  height: 100%;
+  overflow-y: auto;
+  container-type: inline-size;
+}
+
+.wf-head {
+  padding: 18px 24px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--helm-border);
+}
+
+.wf-tile {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--helm-surface-raised);
+  border: 1px solid var(--helm-border-strong);
+  color: var(--helm-fg-muted);
+}
+
+.wf-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wf-h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.wf-body {
+  padding: 18px 24px 28px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.wf-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wf-card {
+  min-width: 0;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.wf-note {
+  margin: 3px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--helm-fg-muted);
+}
+
+.wf-group + .wf-group {
+  margin-top: 14px;
+}
+
+.wf-group-head {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wf-meaning {
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+}
+
+/* A list of rows in a box, with the add row at its foot. */
+.wf-list {
+  background: var(--helm-surface);
+  border: 1px solid var(--helm-border);
+  border-radius: var(--helm-radius);
+  overflow: hidden;
+}
+
+.wf-row {
+  height: 36px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid var(--helm-border);
+  background: var(--helm-surface);
+  font-size: 13px;
+}
+
+.wf-row > .helm-icon-button {
+  width: 24px;
+  height: 24px;
+  margin-left: -6px;
+}
+
+.wf-row > .helm-icon-button + .helm-icon-button {
+  margin-left: -8px;
+}
+
+.wf-name {
+  flex-shrink: 1;
+}
+
+.wf-tag {
+  height: 16px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid var(--helm-border-strong);
+  border-radius: 8px;
+  font-size: 10.5px;
+  color: var(--helm-fg-muted);
+  white-space: nowrap;
+}
+
+.wf-uses {
+  flex-shrink: 0;
+  margin-right: 4px;
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.wf-glyph {
+  width: 15px;
+  display: flex;
+  justify-content: center;
+}
+
+.wf .wf-refused {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wf .wf-refused:hover {
+  background: transparent;
+}
+
+.wf-project {
+  height: 40px;
+}
+
+.wf-open {
+  width: 104px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wf-open:hover {
+  color: var(--helm-accent-text);
+  text-decoration: underline;
+}
+
+/* Monospace sits high beside the sans name: drop it to the same baseline. */
+.wf-place {
+  flex: 1;
+  position: relative;
+  top: 1px;
+  font-size: 11px;
+  color: var(--helm-fg-subtle);
+}
+
+.wf-place-none {
+  font-style: italic;
+}
+
+.wf-add {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--helm-fg-subtle);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wf-add:hover {
+  background: var(--helm-hover);
+  color: var(--helm-fg);
+}
+
+.wf-empty {
+  margin: 0;
+  padding: 10px 10px 2px;
+  font-size: 12px;
+  color: var(--helm-fg-subtle);
+}
+
+/* An editor, in a row's place */
+
+.wf-editor {
+  padding: 10px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid var(--helm-border);
+  background: var(--helm-surface);
+  box-shadow: inset 2px 0 0 var(--helm-accent);
+}
+
+.wf-editor-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wf-preview {
+  width: 22px;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wf .wf-group-select {
+  width: 132px;
+  flex-shrink: 0;
+}
+
+.wf-choices,
+.wf-folders {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.wf-choice-label {
+  width: 52px;
+  flex-shrink: 0;
+  padding-top: 5px;
+  font-size: 11.5px;
+  color: var(--helm-fg-muted);
+}
+
+.wf-choice-set {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.wf-choice {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--helm-radius-well);
+  background: transparent;
+  cursor: pointer;
+}
+
+.wf-choice:hover {
+  background: var(--helm-hover);
+}
+
+.wf-choice[aria-pressed='true'] {
+  border-color: var(--helm-accent);
+  background: var(--helm-accent-soft);
+}
+
+.wf-choice .work-swatch {
+  border-radius: 3px;
+}
+
+.wf-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.wf-check input {
+  margin: 0;
+  accent-color: var(--helm-accent);
+}
+
+.wf-check input:disabled + span {
+  color: var(--helm-fg-muted);
+}
+
+.wf-folder-list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wf-folder {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 0 8px;
+  border-radius: var(--helm-radius);
+  background: var(--helm-surface-raised);
+  color: var(--helm-fg-muted);
+  font-size: 11px;
+}
+
+.wf-folder svg {
+  flex-shrink: 0;
+}
+
+.wf-folder > .work-ellip {
+  flex: 1;
+  color: var(--helm-fg);
+}
+
+.wf-folder .helm-icon-button {
+  width: 24px;
+  height: 24px;
+}
+
+.wf .wf-folder-input {
+  flex: none;
+  font-size: 11.5px;
+}
+
+/* The portfolio */
+
+.wf-form {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.wf-label {
+  font-size: 12px;
+  color: var(--helm-fg-muted);
+}
+
+.wf-label-top {
+  align-self: start;
+  padding-top: 6px;
+}
+
+.wf-key-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wf .wf-key {
+  width: 84px;
+  flex: none;
+  letter-spacing: 0.04em;
+}
+
+.wf .wf-key-line .it-hint {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf .wf-key-line .work-mono {
+  font-size: 11px;
+  color: var(--helm-fg-muted);
+}
+
+.wf .wf-description {
+  max-width: none;
+  resize: vertical;
+}
+
+.wf-portfolio .it-editor-actions {
+  margin-top: 12px;
+}
+
+.wf-danger {
+  margin-top: 14px;
+  padding-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--helm-border);
+}
+
+.wf-danger .it-hint {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Narrow panes */
+
+@container (max-width: 860px) {
+  .wf-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 560px) {
+  .wf-head {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .wf-tile {
+    width: 34px;
+    height: 34px;
+  }
+
+  .wf-h1 {
+    font-size: 18px;
+  }
+
+  .wf-body {
+    padding: 14px 16px 24px;
+  }
+
+  .wf-uses,
+  .wf-meaning {
+    display: none;
+  }
+
+  .wf-open {
+    width: auto;
+    flex-shrink: 1;
+  }
+
+  .wf-place {
+    flex: 1 1 40%;
+  }
+
+  .wf-danger {
+    flex-wrap: wrap;
+  }
+
+  /* Eleven colours on one line. */
+  .wf-choice-label {
+    width: 44px;
+  }
+
+  .wf-choice-set {
+    gap: 1px;
+  }
+
+  .wf-choice {
+    width: 24px;
+    height: 24px;
+  }
+}

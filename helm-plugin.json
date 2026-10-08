@@ -1,0 +1,362 @@
+{
+  "$schema": "./node_modules/@coledtaylor/helm-plugin-sdk/helm-plugin.schema.json",
+  "apiVersion": 1,
+  "id": "trackr",
+  "name": "Trackr",
+  "version": "0.1.0",
+  "description": "Portfolios, projects, epics and tasks, kept in one SQLite file on this computer, with tools for Claude Code sessions.",
+  "icon": "icon.svg",
+  "rail": {
+    "title": "Trackr",
+    "panel": "main"
+  },
+  "panels": {
+    "main": {
+      "title": "Trackr",
+      "entry": "pages/panel.html",
+      "actions": [
+        {
+          "id": "new",
+          "title": "New task",
+          "icon": "plus"
+        },
+        {
+          "id": "refresh",
+          "title": "Refresh",
+          "icon": "refresh"
+        }
+      ]
+    }
+  },
+  "tabs": {
+    "view": {
+      "title": "Trackr",
+      "entry": "pages/view.html"
+    }
+  },
+  "service": {
+    "node": "service/main.mjs",
+    "start": "demand"
+  },
+  "background": "pages/background.html",
+  "agent": {
+    "instructions": "Work tracking on this computer: portfolios > projects > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. There is no delete: set an item to Cancelled.",
+    "tools": {
+      "find": {
+        "description": "Lists items one line each, next up first: ID, status, priority, title, epic, criteria done, what it waits on, the session on it. With no arguments: open items in the project of this session's folder. Filters combine.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string",
+              "description": "A project name, or KEY/Name when the name is in more than one portfolio."
+            },
+            "portfolio": {
+              "type": "string",
+              "description": "A portfolio key, like TC: every project in it."
+            },
+            "epic": {
+              "type": "string",
+              "description": "An epic ID: its tasks."
+            },
+            "status": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "description": "A status name or a list of them. \"open\" (the default) is every not-started or active status; \"any\" is everything."
+            },
+            "text": {
+              "type": "string",
+              "description": "Words in the title or description, or an ID."
+            },
+            "ready": {
+              "type": "boolean",
+              "description": "Only items nothing unfinished holds up."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "At most this many lines. Default 25."
+            }
+          }
+        }
+      },
+      "get": {
+        "description": "Everything about one or more items: status, project and folder, session, dependencies, links, description, acceptance criteria (numbered), where it stands (done, left, next) and the latest log lines. An epic also lists its tasks by project.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "IDs, like [\"TC-123\"]."
+            },
+            "log": {
+              "type": "integer",
+              "description": "How many log lines, latest last. Default 10."
+            }
+          },
+          "required": [
+            "ids"
+          ]
+        }
+      },
+      "create": {
+        "description": "Creates epics and tasks in one call and replies with their IDs. Items can name each other by a temporary ref before they have IDs: epic and waitsOn take a ref or an ID. project defaults to the epic's, then to this session's folder's project. status and priority default to the portfolio's defaults.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "description": "A temporary name other items in this call use."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "task",
+                      "epic"
+                    ],
+                    "description": "Default task."
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "epic": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "ac": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Acceptance criteria, one sentence each."
+                  },
+                  "waitsOn": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Refs or IDs this item waits on."
+                  },
+                  "links": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "value"
+                          ]
+                        }
+                      ]
+                    },
+                    "description": "\"branch feat/x\", \"PR #412\", \"commit b7f02c1\", \"file src/a.py\", \"artifact <url>\", or a URL."
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          },
+          "required": [
+            "items"
+          ]
+        }
+      },
+      "update": {
+        "description": "Changes several items in one call: fields, acceptance criteria, the handoff, a log line, links and dependencies. Criteria numbers are as get shows them. Replies one line per item, then what became ready. Setting a task to an active status records this session on it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "epic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "An epic ID, or null to take it out of its epic."
+                  },
+                  "ac": {
+                    "type": "object",
+                    "properties": {
+                      "check": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      },
+                      "uncheck": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      },
+                      "add": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "edit": {
+                        "type": "object",
+                        "description": "{\"2\": \"new text\"}",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "handoff": {
+                    "type": "object",
+                    "properties": {
+                      "done": {
+                        "type": "string"
+                      },
+                      "left": {
+                        "type": "string"
+                      },
+                      "next": {
+                        "type": "string"
+                      }
+                    },
+                    "description": "Where it stands, replacing the last one."
+                  },
+                  "log": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "ref": {
+                            "type": "string",
+                            "description": "What it is about: a commit, a PR."
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ]
+                      }
+                    ]
+                  },
+                  "links": {
+                    "type": "object",
+                    "properties": {
+                      "add": {
+                        "type": "array",
+                        "items": {}
+                      },
+                      "remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "waitsOn": {
+                    "type": "object",
+                    "properties": {
+                      "add": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
+            }
+          },
+          "required": [
+            "items"
+          ]
+        }
+      }
+    }
+  }
+}

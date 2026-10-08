@@ -1,0 +1,43 @@
+/* The view tab: what every view shares. Each view has its own sheet in
+ * views/. */
+
+.view {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 18px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.crumb {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--helm-fg-muted);
+  cursor: pointer;
+}
+
+.crumb:hover {
+  color: var(--helm-fg);
+}
+
+.counts {
+  font-size: 11.5px;
+  color: var(--helm-fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--helm-fg-subtle);
+}
+
+.state {
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
