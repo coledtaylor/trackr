@@ -1,9 +1,9 @@
 import { homedir } from 'node:os'
 import { isAbsolute, resolve } from 'node:path'
-import { SEP, changeParts } from './changes.mjs'
+import { SEP, changeParts, linkParts } from './changes.mjs'
 import { WorkError, invalid, notFound } from './errors.mjs'
 import { displayFolder } from './folders.mjs'
-import { ITEM_ID, LINK_KINDS, OPEN_GROUPS, PROJECT_COLOURS } from './model.mjs'
+import { ITEM_ID, LINK_KINDS, OPEN_GROUPS, PROJECT_COLOURS, isArtifactAddress } from './model.mjs'
 
 /**
  * The four tools Claude Code sessions call: find, get, create and update.
@@ -311,9 +311,19 @@ function detail(context, item) {
     list.map((other) => `${other.id} ${other.status.name} (${context.project(other.project.uid).name})`).join(', ')
   if (item.waitsOn.length > 0) lines.push(`waits on: ${related(item.waitsOn)}`)
   if (item.blocks.length > 0) lines.push(`blocks: ${related(item.blocks)}`)
-  if (item.links.length > 0) lines.push(`links: ${item.links.map(linkText).join(SEP)}`)
+  const links = item.links.filter((link) => link.kind !== 'artifact')
+  if (links.length > 0) lines.push(`links: ${links.map(linkText).join(SEP)}`)
 
   if (item.description) lines.push('', '## Description', item.description)
+  const own = item.links.filter((link) => link.kind === 'artifact')
+  const artifacts = [
+    ...own.map((link) => artifactLine(link, null)),
+    ...item.epicArtifacts.filter((link) => !own.some((mine) => mine.value === link.value)).map((link) => artifactLine(link, item.epic?.id ?? null))
+  ]
+  if (artifacts.length > 0) {
+    lines.push('', '## Artifacts', 'Mockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.')
+    lines.push(...artifacts)
+  }
   if (item.tasks && item.tasks.length > 0) {
     lines.push('', '## Tasks')
     /** @type {Map<string, ItemSummary[]>} */
@@ -358,11 +368,21 @@ function linkText(link) {
   return `${kind} ${value}${link.label ? ` (${link.label})` : ''}`
 }
 
+/**
+ * Settings page mockup · https://claude.ai/artifact/abc · from epic TC-118
+ *
+ * @param {{ value: string, label: string }} link
+ * @param {string | null} epic the epic it comes from, when it is not the item's own
+ */
+function artifactLine(link, epic) {
+  return [link.label, link.value, epic ? `from epic ${epic}` : ''].filter(Boolean).join(SEP)
+}
+
 // -----------------------------------------------------------------------------
 // create
 
 const CREATE_KINDS = /** @type {const} */ (['task', 'epic', 'project', 'portfolio'])
-const CREATE_FIELDS = ['ref', 'kind', 'project', 'epic', 'title', 'description', 'status', 'priority', 'ac', 'waitsOn', 'links']
+const CREATE_FIELDS = ['ref', 'kind', 'project', 'epic', 'title', 'description', 'status', 'priority', 'ac', 'waitsOn', 'links', 'artifacts']
 const PORTFOLIO_FIELDS = ['kind', 'key', 'name', 'description']
 const PROJECT_FIELDS = ['kind', 'portfolio', 'name', 'colour', 'folders']
 
@@ -518,7 +538,10 @@ function createItems(context, inputs) {
       status: /** @type {string | undefined} */ (input.status),
       priority: /** @type {string | undefined} */ (input.priority),
       criteria: input.ac === undefined ? undefined : stringList(input.ac, `${where}.ac`),
-      links: input.links === undefined ? undefined : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`)),
+      links: [
+        ...(input.links === undefined ? [] : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`))),
+        ...(input.artifacts === undefined ? [] : listArg(input.artifacts, `${where}.artifacts`).map((link) => parseArtifact(link, `${where}.artifacts`)))
+      ],
       by: session.name
     })
     if (ref !== null) refs.set(ref, item.uid)
@@ -592,11 +615,11 @@ function createReply(context, items) {
 // -----------------------------------------------------------------------------
 // update
 
-const UPDATE_FIELDS = ['id', 'title', 'description', 'status', 'priority', 'project', 'epic', 'ac', 'handoff', 'log', 'links', 'waitsOn']
+const UPDATE_FIELDS = ['id', 'title', 'description', 'status', 'priority', 'project', 'epic', 'ac', 'handoff', 'log', 'links', 'artifacts', 'waitsOn']
 
 /**
  * Several items in one call: fields, criteria, handoff, a log line, links,
- * dependencies. One line per item, then what became ready. All of it lands or
+ * artifacts, dependencies. One line per item, then what became ready. All of it lands or
  * none of it does.
  *
  * @param {Context} context
@@ -687,16 +710,26 @@ function updateOne(context, input, where) {
     parts.push('log +1')
   }
 
-  if (input.links !== undefined) {
-    const links = objectArg(input.links, `${where}.links`)
-    only(links, ['add', 'remove'], `${where}.links`)
-    const added = links.add === undefined ? [] : listArg(links.add, `${where}.links.add`)
-    for (const link of added) store.addLink(before.uid, parseLink(link, `${where}.links.add`))
-    const removed = links.remove === undefined ? [] : listArg(links.remove, `${where}.links.remove`)
-    for (const link of removed) store.removeLink(before.uid, findLink(store, before.uid, link, `${where}.links.remove`))
-    if (added.length > 0) parts.push(`link +${added.length}`)
-    if (removed.length > 0) parts.push(`link -${removed.length}`)
+  /** @type {{ kind: string }[]} */
+  const linksAdded = []
+  /** @type {{ kind: string }[]} */
+  const linksRemoved = []
+  for (const field of /** @type {const} */ (['links', 'artifacts'])) {
+    if (input[field] === undefined) continue
+    const ops = objectArg(input[field], `${where}.${field}`)
+    only(ops, ['add', 'remove'], `${where}.${field}`)
+    const parse = field === 'links' ? parseLink : parseArtifact
+    for (const value of ops.add === undefined ? [] : listArg(ops.add, `${where}.${field}.add`)) {
+      linksAdded.push(store.addLink(before.uid, parse(value, `${where}.${field}.add`)))
+    }
+    for (const value of ops.remove === undefined ? [] : listArg(ops.remove, `${where}.${field}.remove`)) {
+      const link =
+        field === 'links' ? findLink(store, before.uid, value, `${where}.links.remove`) : findArtifact(store, before.uid, value, `${where}.artifacts.remove`)
+      store.removeLink(before.uid, link.uid)
+      linksRemoved.push(link)
+    }
   }
+  parts.push(...linkParts(linksAdded, linksRemoved))
 
   if (input.waitsOn !== undefined) {
     const waits = objectArg(input.waitsOn, `${where}.waitsOn`)
@@ -763,6 +796,7 @@ function applyCriteria(store, uid, value, where) {
 /**
  * A link as an agent writes one: `{ kind, value, label }`, or a string like
  * "commit b7f02c1", "branch feat/x", "PR #412", "file src/a.py", or a bare URL.
+ * A bare claude.ai artifact address is an artifact.
  *
  * @param {unknown} value
  * @param {string} where
@@ -780,7 +814,7 @@ export function parseLink(value, where) {
   }
   if (typeof value !== 'string' || value.trim() === '') throw invalid(`${where}: a link is a string like "branch feat/x" or {kind, value, label}.`)
   const text = value.trim()
-  if (/^https?:\/\/\S+$/i.test(text)) return { kind: 'url', value: text }
+  if (/^https?:\/\/\S+$/i.test(text)) return { kind: isArtifactAddress(text) ? 'artifact' : 'url', value: text }
   const space = text.search(/\s/)
   const word = (space < 0 ? text : text.slice(0, space)).toLowerCase()
   const rest = space < 0 ? '' : text.slice(space).trim()
@@ -816,7 +850,48 @@ function findLink(store, uid, value, where) {
   )
   if (match.length === 0) throw notFound(`${where}: there is no link ${wanted || String(value)}.`)
   if (match.length > 1) throw invalid(`${where}: ${wanted} matches more than one link. Write it as "kind value".`)
-  return match[0].uid
+  return match[0]
+}
+
+/**
+ * An artifact as an agent writes one: its claude.ai address, or
+ * `{ url, label }` where the label says what it is ("Settings page mockup").
+ *
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {{ kind: 'artifact', value: string, label?: string }}
+ */
+export function parseArtifact(value, where) {
+  /** @type {unknown} */
+  let url = value
+  /** @type {string | undefined} */
+  let label
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const artifact = /** @type {Record<string, unknown>} */ (value)
+    only(artifact, ['url', 'label'], where)
+    url = artifact.url
+    label = artifact.label === undefined ? undefined : textArg(artifact.label, `${where}.label`).trim()
+  }
+  if (typeof url !== 'string' || !isArtifactAddress(url)) {
+    const shown = typeof url === 'string' ? `"${url.trim()}"` : 'that'
+    throw invalid(`${where}: ${shown} is not a claude.ai artifact. Give its address, like https://claude.ai/artifact/…, or {url, label}.`)
+  }
+  return { kind: 'artifact', value: url.trim(), label }
+}
+
+/**
+ * The artifact to remove, by its address.
+ *
+ * @param {WorkStore} store
+ * @param {number} uid
+ * @param {unknown} value
+ * @param {string} where
+ */
+function findArtifact(store, uid, value, where) {
+  const wanted = typeof value === 'string' ? value.trim() : ''
+  const link = store.getItem(uid, { logLimit: 0 }).links.find((candidate) => candidate.kind === 'artifact' && candidate.value === wanted)
+  if (link === undefined) throw notFound(`${where}: there is no artifact ${wanted || String(value)}.`)
+  return link
 }
 
 // -----------------------------------------------------------------------------

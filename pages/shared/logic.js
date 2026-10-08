@@ -278,6 +278,22 @@ export function linkText(link) {
 }
 
 /**
+ * How an artifact reads in its own card, where the kind goes without saying:
+ * its label over its address, or the address alone. One that comes from the
+ * item's epic says so.
+ *
+ * @param {{ value: string, label: string }} link
+ * @param {string | null} epic the epic's ID when it is the epic's artifact
+ * @returns {{ text: string, meta: string, mono: boolean }}
+ */
+export function artifactText(link, epic) {
+  const address = link.value.replace(/^https:\/\//i, '')
+  const from = epic ? `From epic ${epic}` : ''
+  if (link.label) return { text: link.label, meta: [from, address].filter(Boolean).join(' · '), mono: false }
+  return { text: address, meta: from, mono: false }
+}
+
+/**
  * The prompt that starts a session on an item.
  *
  * @param {{ id: string }} item

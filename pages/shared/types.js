@@ -29,7 +29,7 @@
  * @typedef {{ done: string, left: string, next: string, by: string, at: string }} Handoff
  * @typedef {ItemSummary & {
  *   description: string, createdAt: string, createdBy: string | null,
- *   criteriaList: Criterion[], links: Link[], waitsOn: ItemSummary[], blocks: ItemSummary[],
+ *   criteriaList: Criterion[], links: Link[], epicArtifacts: Link[], waitsOn: ItemSummary[], blocks: ItemSummary[],
  *   handoff: Handoff | null, log: { entries: LogEntry[], total: number },
  *   tasks: ItemSummary[] | null, spans: string[] | null
  * }} Item

@@ -2,7 +2,7 @@
 /**
  * A task: chips under the title, the description, acceptance criteria, where
  * it stands with the log under it, and beside them its fields, dependencies,
- * links and the button that starts a session on it. The v2 board's task
+ * artifacts, links and the button that starts a session on it. The v2 board's task
  * page; everything on it is edited in place.
  */
 
@@ -12,6 +12,7 @@ import { markSession } from '../shared/sessions.js'
 import { openItem, openPortfolio, openProject, rpc } from '../shared/work.js'
 import {
   YOU,
+  artifactsCard,
   button,
   chip,
   descriptionSection,
@@ -63,6 +64,7 @@ export function taskParts(data, editing, state, redraw) {
       el('aside', { class: 'it-aside' }, [
         propertiesCard(editing, data),
         dependenciesCard(data, editing, state, redraw),
+        artifactsCard(editing, data.item),
         linksCard(editing, data.item),
         promptBlock(data),
         el('span', { class: 'it-grow' }),

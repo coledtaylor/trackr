@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { SEP, changeParts } from './changes.mjs'
+import { SEP, changeParts, linkParts } from './changes.mjs'
 import { conflict, invalid, notFound } from './errors.mjs'
 import { absoluteFolder, folderHolds, normalFolder } from './folders.mjs'
 import {
@@ -15,6 +15,7 @@ import {
   LIMITS,
   LINK_KINDS,
   OPEN_GROUPS,
+  isArtifactAddress,
   PORTFOLIO_KEY,
   PROJECT_COLOURS,
   STATUS_GROUPS,
@@ -50,7 +51,7 @@ import { MIGRATIONS } from './schema.mjs'
  * @typedef {{ done: string, left: string, next: string, by: string, at: string }} Handoff
  * @typedef {ItemSummary & {
  *   description: string, createdAt: string, createdBy: string | null,
- *   criteriaList: Criterion[], links: Link[], waitsOn: ItemSummary[], blocks: ItemSummary[],
+ *   criteriaList: Criterion[], links: Link[], epicArtifacts: Link[], waitsOn: ItemSummary[], blocks: ItemSummary[],
  *   handoff: Handoff | null, log: { entries: LogEntry[], total: number },
  *   tasks: ItemSummary[] | null, spans: string[] | null
  * }} Item
@@ -216,6 +217,24 @@ export class WorkStore {
    */
   rows(sql, ...params) {
     return this.statement(sql).all(...params)
+  }
+
+  /**
+   * An item's links, or only its artifacts, in their order.
+   *
+   * @private
+   * @param {number} itemId
+   * @param {{ artifacts?: boolean }} [options]
+   * @returns {Link[]}
+   */
+  linkRows(itemId, options = {}) {
+    const kind = options.artifacts ? "AND kind = 'artifact'" : ''
+    return this.rows(`SELECT id, kind, value, label FROM links WHERE item_id = ? ${kind} ORDER BY position`, itemId).map((link) => ({
+      uid: link.id,
+      kind: link.kind,
+      value: link.value,
+      label: link.label
+    }))
   }
 
   /**
@@ -952,6 +971,8 @@ export class WorkStore {
   /**
    * Everything about one item. A task's log is its latest `logLimit` entries,
    * oldest first; an epic also lists its tasks and the projects they are in.
+   * A task in an epic carries the epic's artifacts too (`epicArtifacts`): a
+   * design document usually covers the whole epic.
    *
    * @param {Ref} ref
    * @param {{ logLimit?: number }} [options]
@@ -964,9 +985,8 @@ export class WorkStore {
     const criteriaList = this.rows('SELECT text, done FROM criteria WHERE item_id = ? ORDER BY position', row.id).map(
       (criterion, index) => ({ n: index + 1, text: criterion.text, done: criterion.done === 1 })
     )
-    const links = this.rows('SELECT id, kind, value, label FROM links WHERE item_id = ? ORDER BY position', row.id).map(
-      (link) => ({ uid: link.id, kind: link.kind, value: link.value, label: link.label })
-    )
+    const links = this.linkRows(row.id)
+    const epicArtifacts = row.epic_id === null ? [] : this.linkRows(row.epic_id, { artifacts: true })
     const total = Number(this.row('SELECT count(*) AS n FROM log WHERE item_id = ?', row.id).n)
     const entries = this.rows('SELECT at, by, text, ref FROM log WHERE item_id = ? ORDER BY id DESC LIMIT ?', row.id, logLimit)
       .reverse()
@@ -979,6 +999,7 @@ export class WorkStore {
       createdBy: row.created_by,
       criteriaList,
       links,
+      epicArtifacts,
       waitsOn: this.summaries(`WHERE i.id IN (SELECT waits_on_id FROM dependencies WHERE item_id = ?) ${NEXT_UP_ORDER}`, [row.id]),
       blocks: this.summaries(`WHERE i.id IN (SELECT item_id FROM dependencies WHERE waits_on_id = ?) ${NEXT_UP_ORDER}`, [row.id]),
       handoff:
@@ -1310,12 +1331,14 @@ export class WorkStore {
         this.removeDependency(row.id, other)
         parts.push(`no longer waits on ${this.idOf(other)}`)
       }
-      const added = patch.links?.add ?? []
-      for (const link of added) this.addLink(row.id, link)
-      const removed = patch.links?.remove ?? []
-      for (const link of removed) this.removeLink(row.id, link)
-      if (added.length > 0) parts.push(`link +${added.length}`)
-      if (removed.length > 0) parts.push(`link -${removed.length}`)
+      const added = (patch.links?.add ?? []).map((link) => this.addLink(row.id, link))
+      const kinds = new Map(this.linkRows(row.id).map((link) => [link.uid, link.kind]))
+      const removed = (patch.links?.remove ?? []).map((uid) => {
+        const kind = kinds.get(uid)
+        this.removeLink(row.id, uid)
+        return { kind }
+      })
+      parts.push(...linkParts(added, removed))
       if (patch.handoff !== undefined) {
         this.setHandoff(row.id, patch.handoff, author)
         parts.push('handoff')
@@ -1506,6 +1529,9 @@ export class WorkStore {
       const kind = input?.kind
       if (!LINK_KINDS.includes(/** @type {any} */ (kind))) throw invalid(`A link's kind is one of ${LINK_KINDS.join(', ')}.`)
       const value = requiredText(input.value, 'link', LIMITS.linkValue)
+      if (kind === 'artifact' && !isArtifactAddress(value)) {
+        throw invalid(`${value} is not a claude.ai artifact. An artifact's address is like https://claude.ai/artifact/… or https://claude.ai/code/artifact/….`)
+      }
       const label = optionalText(input.label, 'label', LIMITS.title) ?? ''
       const existing = this.row('SELECT id FROM links WHERE item_id = ? AND kind = ? AND value = ?', row.id, kind, value)
       if (existing) {

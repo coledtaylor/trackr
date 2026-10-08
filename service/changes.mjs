@@ -35,3 +35,23 @@ export function changeParts(changes) {
   }
   return parts
 }
+
+/**
+ * Links added and removed, counted apart from artifacts:
+ * "link +2", "artifact +1", "link -1".
+ *
+ * @param {{ kind?: string }[]} added
+ * @param {{ kind?: string }[]} removed
+ * @returns {string[]}
+ */
+export function linkParts(added, removed) {
+  /** @type {string[]} */
+  const parts = []
+  for (const [list, sign] of /** @type {const} */ ([[added, '+'], [removed, '-']])) {
+    const artifacts = list.filter((link) => link.kind === 'artifact').length
+    const others = list.length - artifacts
+    if (others > 0) parts.push(`link ${sign}${others}`)
+    if (artifacts > 0) parts.push(`artifact ${sign}${artifacts}`)
+  }
+  return parts
+}

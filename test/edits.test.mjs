@@ -113,6 +113,27 @@ describe('editItem', () => {
     assert.equal(store.getItem(task.id).log.entries[1].text, 'Just a note')
   })
 
+  test("artifacts are logged apart from links, and a task carries its epic's", () => {
+    const store = tidecast()
+    const epic = store.createItem({ kind: 'epic', project: 'Desktop', title: 'Epic' })
+    const task = store.createItem({ project: 'Desktop', title: 'Task', epic: epic.id })
+    store.editItem(epic.id, { links: { add: [{ kind: 'artifact', value: 'https://claude.ai/artifact/m1', label: 'Mockup' }] } }, 'You')
+    store.editItem(task.id, { links: { add: [{ kind: 'branch', value: 'feat/x' }, { kind: 'artifact', value: 'https://claude.ai/artifact/m2' }] } }, 'You')
+    const item = store.getItem(task.id)
+    assert.deepEqual(item.epicArtifacts.map((link) => [link.value, link.label]), [['https://claude.ai/artifact/m1', 'Mockup']])
+    assert.deepEqual(store.getItem(epic.id).epicArtifacts, [])
+    store.editItem(task.id, { links: { remove: item.links.map((link) => link.uid) } }, 'You')
+    assert.deepEqual(
+      store.getItem(task.id).log.entries.map((entry) => entry.text),
+      ['link +1 · artifact +1', 'link -1 · artifact -1']
+    )
+    assert.throws(() => store.editItem(task.id, { links: { add: [{ kind: 'artifact', value: 'https://example.com' }] } }, 'You'), {
+      code: 'invalid',
+      message: "https://example.com is not a claude.ai artifact. An artifact's address is like https://claude.ai/artifact/… or https://claude.ai/code/artifact/…."
+    })
+  })
+
+
   test('dependencies, links and where it stands, logged by ID and count', () => {
     const store = tidecast()
     const first = store.createItem({ project: 'Desktop', title: 'First' })

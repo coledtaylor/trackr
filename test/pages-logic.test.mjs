@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { age, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, linkText, listOrder, liveState, moved, openCount, openableAddress, paragraphs, priorityMark, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
+import { age, artifactText, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, linkText, listOrder, liveState, moved, openCount, openableAddress, paragraphs, priorityMark, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
 
 describe('timeLabel', () => {
   const now = new Date(2026, 9, 7, 16, 30)
@@ -200,6 +200,16 @@ describe('linkText', () => {
     assert.deepEqual(linkText({ kind: 'pr', value: '#412', label: 'Soft-delete views' }), { text: 'Soft-delete views', meta: 'Pull request · #412', mono: false })
     assert.deepEqual(linkText({ kind: 'branch', value: 'feat/x', label: '' }), { text: 'feat/x', meta: 'Branch', mono: true })
     assert.deepEqual(linkText({ kind: 'url', value: 'https://x', label: '' }), { text: 'https://x', meta: 'Link', mono: false })
+  })
+})
+
+describe('artifactText', () => {
+  it('shows a label over the address, else the address, and an epic artifact says so', () => {
+    const value = 'https://claude.ai/artifact/abc'
+    assert.deepEqual(artifactText({ value, label: 'Settings mockup' }, null), { text: 'Settings mockup', meta: 'claude.ai/artifact/abc', mono: false })
+    assert.deepEqual(artifactText({ value, label: '' }, null), { text: 'claude.ai/artifact/abc', meta: '', mono: false })
+    assert.deepEqual(artifactText({ value, label: 'Design' }, 'TC-1'), { text: 'Design', meta: 'From epic TC-1 · claude.ai/artifact/abc', mono: false })
+    assert.deepEqual(artifactText({ value, label: '' }, 'TC-1'), { text: 'claude.ai/artifact/abc', meta: 'From epic TC-1', mono: false })
   })
 })
 

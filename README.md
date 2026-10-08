@@ -86,7 +86,8 @@ Portfolio  key (TC), name, description, next number,
 Project    portfolio, name, colour, folders []
 Item       TC-123, kind epic | task, project, epic (tasks only), title,
            description, status, priority, position, waitsOn [ids],
-           links [{kind, value, label}], criteria [{text, done}],
+           links [{kind, value, label}] (artifacts are links of kind artifact),
+           criteria [{text, done}],
            handoff {done, left, next, by, at}, log [{at, by, text, ref}],
            session {id, name, activeAt}
 ```
@@ -150,21 +151,26 @@ Rows open a page:
   workflow page.
 - **An epic** shows its progress in each project, its tasks in a box per
   project, the order they can be done in (each task hangs from the task it
-  waits on), and its links. "Add a task" puts one in any project.
+  waits on), and its artifacts and links. "Add a task" puts one in any project.
 - **A task** shows its description, acceptance criteria, where it stands and
-  the log, with its fields, dependencies and links beside them. **Start a
-  session** asks Helm to open Claude Code in the project's first folder with
-  `work on TC-123`; Helm shows what it will run and you start it or not. A
-  project with no folder has nowhere to start one. The session chip says what
+  the log, with its fields, dependencies, artifacts and links beside them.
+  **Start a session** asks Helm to open Claude Code in the project's first
+  folder with `work on TC-123`; Helm shows what it will run and you start it
+  or not. A project with no folder has nowhere to start one. The session chip says what
   the session is doing (working, idle, waiting for you) or that it is not
   running. An `https` link opens in Helm's Browser tab when pressed, with a
   button to copy it; a branch, commit or file is copied.
+- **Artifacts** are claude.ai artifacts the work follows: UI mockups, design
+  documents. They have their own card and their own section in `get`, which
+  tells the agent to read them with its Artifact tool instead of the task
+  copying them into its description. A task also shows its epic's artifacts,
+  marked as the epic's. Only claude.ai artifact addresses are taken.
 
 Everything on an epic or task page is edited in place: the title and
 description, status, priority, project and epic, criteria, where it stands,
-dependencies (both ways) and links, and the session can be let go. An edit is
-logged as "You", the way a session's update is logged with its name; checking
-off criteria is not logged. Moving a task out of an active status lets go of
+dependencies (both ways), artifacts and links, and the session can be let go.
+An edit is logged as "You", the way a session's update is logged with its
+name; checking off criteria is not logged. Moving a task out of an active status lets go of
 its session, as it does for a session's update.
 
 **Delete**, under the column, asks first and says what goes with it: an

@@ -14,7 +14,7 @@
 
 import { TRASH, confirmDanger } from '../shared/dialog.js'
 import { ICONS, el, lineIcon, priorityGlyph, selectFace, statusIcon, swatch, toast } from '../shared/dom.js'
-import { LINK_KINDS, age, codeSpans, linkText, openableAddress, paragraphs, priorityMark, timeLabel } from '../shared/logic.js'
+import { LINK_KINDS, age, artifactText, codeSpans, linkText, openableAddress, paragraphs, priorityMark, timeLabel } from '../shared/logic.js'
 import { announceChange, rpc } from '../shared/work.js'
 
 /** Who the person is in the log. */
@@ -550,18 +550,19 @@ export function propertiesCard(editing, data) {
 }
 
 /** @type {Record<string, string>} */
-const LINK_ICONS = { branch: ICONS.branch, pr: ICONS.pr, commit: ICONS.commit, file: ICONS.file, artifact: ICONS.external, url: ICONS.external }
+const LINK_ICONS = { branch: ICONS.branch, pr: ICONS.pr, commit: ICONS.commit, file: ICONS.file, artifact: ICONS.artifact, url: ICONS.external }
 
 /**
  * The links, and a form to add one. An `https` address opens in Helm's
  * Browser tab when pressed and has a button to copy it; anything else (a
- * branch, a commit, a file) is copied when pressed.
+ * branch, a commit, a file) is copied when pressed. Artifacts have their own
+ * card.
  *
  * @param {Editing} editing
  * @param {Item} item
  */
 export function linksCard(editing, item) {
-  const rows = item.links.map((link) => linkRow(editing, link))
+  const rows = item.links.filter((link) => link.kind !== 'artifact').map((link) => linkRow(editing, link, linkText(link)))
   const adding = editing.isOpen('link')
   return el('div', { class: 'it-card it-links' }, [
     el('h2', { class: 'it-h2 it-card-title', text: 'Links' }),
@@ -572,11 +573,42 @@ export function linksCard(editing, item) {
 }
 
 /**
+ * The artifacts the work follows (UI mockups, design documents), and a form
+ * to add one. A task also shows its epic's, which are removed on the epic.
+ * Adding an artifact that is already there with a label relabels it.
+ *
+ * @param {Editing} editing
+ * @param {Item} item
+ */
+export function artifactsCard(editing, item) {
+  const own = item.links.filter((link) => link.kind === 'artifact')
+  const inherited = item.epicArtifacts.filter((link) => !own.some((mine) => mine.value === link.value))
+  const epic = item.epic?.id ?? null
+  const rows = [
+    ...own.map((link) => linkRow(editing, link, artifactText(link, null))),
+    ...inherited.map((link) => linkRow(editing, link, artifactText(link, epic), { removable: false }))
+  ]
+  const adding = editing.isOpen('artifact')
+  return el('div', { class: 'it-card it-links' }, [
+    el('h2', { class: 'it-h2 it-card-title', text: 'Artifacts' }),
+    ...rows,
+    rows.length === 0 && !adding ? el('p', { class: 'it-none', text: 'No mockups or design documents yet.' }) : null,
+    adding
+      ? artifactForm(editing)
+      : el('button', { class: 'it-add-row', attrs: { type: 'button' }, on: { click: () => editing.start('artifact', 'artifact.value') } }, [
+          lineIcon(ICONS.plus, 12, 1.8),
+          'Add an artifact'
+        ])
+  ])
+}
+
+/**
  * @param {Editing} editing
  * @param {Link} link
+ * @param {{ text: string, meta: string, mono: boolean }} text
+ * @param {{ removable?: boolean }} [options] removable: false for a link that belongs to another item
  */
-function linkRow(editing, link) {
-  const text = linkText(link)
+function linkRow(editing, link, text, options = {}) {
   const address = openableAddress(link.value)
   const copy = () => void editing.copy(link.value, link.value)
   return el('div', { class: 'it-link' }, [
@@ -592,12 +624,14 @@ function linkRow(editing, link) {
         el('span', { class: 'it-link-icon' }, [lineIcon(LINK_ICONS[link.kind] ?? ICONS.external, 12, 2)]),
         el('span', { class: 'it-link-text' }, [
           el('span', { class: text.mono ? 'work-ellip it-mono' : 'work-ellip', text: text.text }),
-          el('span', { class: 'work-ellip it-link-meta', text: text.meta })
+          text.meta ? el('span', { class: 'work-ellip it-link-meta', text: text.meta }) : null
         ])
       ]
     ),
     address === null ? null : iconButton('Copy the address', ICONS.copy, copy, 'it-remove'),
-    iconButton('Remove this link', ICONS.close, () => void editing.edit({ links: { remove: [link.uid] } }), 'it-remove')
+    options.removable === false
+      ? null
+      : iconButton(link.kind === 'artifact' ? 'Remove this artifact' : 'Remove this link', ICONS.close, () => void editing.edit({ links: { remove: [link.uid] } }), 'it-remove')
   ])
 }
 
@@ -633,7 +667,7 @@ function linkForm(editing) {
     const select = el(
       'select',
       { class: 'helm-select it-select', attrs: { 'aria-label': 'Kind' } },
-      LINK_KINDS.map(([key, text]) => el('option', { text, attrs: { value: key } }))
+      LINK_KINDS.filter(([key]) => key !== 'artifact').map(([key, text]) => el('option', { text, attrs: { value: key } }))
     )
     return select
   })
@@ -641,6 +675,25 @@ function linkForm(editing) {
     kind,
     lineField(editing, 'link.value', { label: 'Value', placeholder: 'feat/saved-views, #412, a path or address', onEnter: () => void save(), onEscape: cancel }),
     lineField(editing, 'link.label', { label: 'Label', placeholder: 'Label, if it needs one', onEnter: () => void save(), onEscape: cancel }),
+    editorActions(() => void save(), cancel, 'Enter adds')
+  ])
+}
+
+/** @param {Editing} editing */
+function artifactForm(editing) {
+  const save = async () => {
+    const value = editing.field('artifact.value', () => el('input')).value.trim()
+    const label = editing.field('artifact.label', () => el('input')).value.trim()
+    if (value === '') {
+      toast("Paste the artifact's claude.ai address.")
+      return
+    }
+    if (await editing.edit({ links: { add: [{ kind: 'artifact', value, label }] } })) editing.close('artifact')
+  }
+  const cancel = () => editing.close('artifact')
+  return el('div', { class: 'it-link-form' }, [
+    lineField(editing, 'artifact.value', { label: 'Address', placeholder: 'https://claude.ai/artifact/…', onEnter: () => void save(), onEscape: cancel }),
+    lineField(editing, 'artifact.label', { label: 'Label', placeholder: 'What it is, like "Settings mockup"', onEnter: () => void save(), onEscape: cancel }),
     editorActions(() => void save(), cancel, 'Enter adds')
   ])
 }

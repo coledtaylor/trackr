@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { beforeEach, describe, test } from 'node:test'
 import { dispatchTool } from '../service/rpc.mjs'
 import { WorkStore } from '../service/store.mjs'
-import { parseLink, runTool } from '../service/tools.mjs'
+import { parseArtifact, parseLink, runTool } from '../service/tools.mjs'
 
 const HOME = process.platform === 'win32' ? 'C:\\Users\\me' : '/home/me'
 const DESKTOP = join(HOME, 'code', 'tidecast')
@@ -118,7 +118,7 @@ describe('create', () => {
 
   test('refuses unknown fields, refs that look like IDs, and refs that do not exist', () => {
     assert.throws(() => call('create', { items: [{ title: 'x', assignee: 'me' }] }, s3), {
-      message: 'items[0] does not take "assignee". It takes ref, kind, project, epic, title, description, status, priority, ac, waitsOn, links.'
+      message: 'items[0] does not take "assignee". It takes ref, kind, project, epic, title, description, status, priority, ac, waitsOn, links, artifacts.'
     })
     assert.throws(() => call('create', { items: [{ ref: 'TC-9', title: 'x' }] }, s3), /looks like an ID/)
     assert.throws(() => call('create', { items: [{ title: 'x', waitsOn: ['nope'] }] }, s3), {
@@ -528,9 +528,90 @@ describe('links written as text', () => {
     assert.deepEqual(parseLink('commit b7f02c1', 'x'), { kind: 'commit', value: 'b7f02c1' })
     assert.deepEqual(parseLink('PR #412', 'x'), { kind: 'pr', value: '412' })
     assert.deepEqual(parseLink('file reports/view label.py', 'x'), { kind: 'file', value: 'reports/view label.py' })
-    assert.deepEqual(parseLink('https://claude.ai/artifact/abc', 'x'), { kind: 'url', value: 'https://claude.ai/artifact/abc' })
+    assert.deepEqual(parseLink('https://example.com/a', 'x'), { kind: 'url', value: 'https://example.com/a' })
+    assert.deepEqual(parseLink('https://claude.ai/artifact/abc', 'x'), { kind: 'artifact', value: 'https://claude.ai/artifact/abc' })
     assert.deepEqual(parseLink('artifact https://claude.ai/artifact/abc', 'x'), { kind: 'artifact', value: 'https://claude.ai/artifact/abc' })
     assert.throws(() => parseLink('branch', 'x'), /is not a link/)
+  })
+})
+
+describe('artifacts', () => {
+  const MOCKUP = 'https://claude.ai/artifact/mock1'
+  const DESIGN = 'https://claude.ai/code/artifact/0b6f-42aa'
+
+  test('parse an address or {url, label}, and refuse anything else', () => {
+    assert.deepEqual(parseArtifact(MOCKUP, 'x'), { kind: 'artifact', value: MOCKUP, label: undefined })
+    assert.deepEqual(parseArtifact({ url: ` ${DESIGN} `, label: ' Sync design ' }, 'x'), { kind: 'artifact', value: DESIGN, label: 'Sync design' })
+    assert.throws(() => parseArtifact('https://example.com/artifact/abc', 'x'), {
+      message: 'x: "https://example.com/artifact/abc" is not a claude.ai artifact. Give its address, like https://claude.ai/artifact/…, or {url, label}.'
+    })
+    assert.throws(() => parseArtifact('http://claude.ai/artifact/abc', 'x'), /is not a claude.ai artifact/)
+    assert.throws(() => parseArtifact('https://claude.ai/chat/abc', 'x'), /is not a claude.ai artifact/)
+    assert.throws(() => parseArtifact({ url: MOCKUP, kind: 'artifact' }, 'x'), /x does not take "kind"/)
+    assert.throws(() => parseArtifact(42, 'x'), /x: that is not a claude.ai artifact/)
+  })
+
+  test("get lists them in their own section, the epic's after the task's, and not among links", () => {
+    call(
+      'create',
+      {
+        items: [
+          { ref: 'e', kind: 'epic', title: 'Saved views', artifacts: [{ url: DESIGN, label: 'Saved views design' }, MOCKUP] },
+          { epic: 'e', title: 'Rename a view', links: ['branch feat/rename'], artifacts: [{ url: MOCKUP, label: 'Rename mockup' }] }
+        ]
+      },
+      s3
+    )
+    assert.equal(
+      call('get', { ids: ['TC-2'], log: 0 }, s3),
+      [
+        'TC-2 Rename a view',
+        'task · Backlog · Normal · TideCast/Desktop (~/code/tidecast) · epic TC-1 Saved views',
+        'links: branch feat/rename',
+        '',
+        '## Artifacts',
+        'Mockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.',
+        `Rename mockup · ${MOCKUP}`,
+        `Saved views design · ${DESIGN} · from epic TC-1`
+      ].join('\n')
+    )
+    const epic = call('get', { ids: ['TC-1'], log: 0 }, s3)
+    assert.ok(epic.includes(`## Artifacts\nMockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.\nSaved views design · ${DESIGN}\n${MOCKUP}\n`))
+    assert.ok(!epic.includes('links:'))
+  })
+
+  test('an artifact link made before the field shows as an artifact', () => {
+    call('create', { items: [{ title: 'Old', links: [`artifact ${MOCKUP}`] }] }, s3)
+    const text = call('get', { ids: ['TC-1'], log: 0 }, s3)
+    assert.ok(text.endsWith(`## Artifacts\nMockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.\n${MOCKUP}`))
+    assert.ok(!text.includes('links:'))
+  })
+
+  test('update adds, relabels and removes them, and says so', () => {
+    call('create', { items: [{ title: 'T', links: ['branch feat/x'] }] }, s3)
+    assert.equal(call('update', { items: [{ id: 'TC-1', artifacts: { add: [MOCKUP, DESIGN] } }] }, s3), 'TC-1 artifact +2')
+    call('update', { items: [{ id: 'TC-1', artifacts: { add: [{ url: MOCKUP, label: 'Settings mockup' }] } }] }, s3)
+    assert.deepEqual(
+      store.getItem('TC-1').links.map((l) => [l.kind, l.value, l.label]),
+      [
+        ['branch', 'feat/x', ''],
+        ['artifact', MOCKUP, 'Settings mockup'],
+        ['artifact', DESIGN, '']
+      ]
+    )
+    assert.equal(call('update', { items: [{ id: 'TC-1', artifacts: { remove: [DESIGN] }, links: { remove: ['feat/x'] } }] }, s3), 'TC-1 link -1 · artifact -1')
+    assert.deepEqual(store.getItem('TC-1').links.map((l) => l.value), [MOCKUP])
+    assert.equal(store.getItem('TC-1').log.entries.at(-1)?.text, 'link -1 · artifact -1')
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', artifacts: { remove: [DESIGN] } }] }, s3), {
+      message: `TC-1.artifacts.remove: there is no artifact ${DESIGN}.`
+    })
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', artifacts: { add: ['https://example.com'] } }] }, s3), /TC-1.artifacts.add: .* is not a claude.ai artifact/)
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', artifacts: [MOCKUP] }] }, s3), /TC-1.artifacts must be an object/)
+  })
+
+  test('a link of kind artifact must be a claude.ai artifact too', () => {
+    assert.throws(() => call('create', { items: [{ title: 'T', links: ['artifact https://example.com/x'] }] }, s3), /is not a claude.ai artifact/)
+    assert.throws(() => call('create', { items: [{ title: 'T', artifacts: ['nope'] }] }, s3), /items\[0\].artifacts: "nope" is not a claude.ai artifact/)
   })
 })
 

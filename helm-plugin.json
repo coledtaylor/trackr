@@ -42,7 +42,7 @@
   },
   "background": "pages/background.html",
   "agent": {
-    "instructions": "Work tracking on this computer: portfolios > projects > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. There is no delete: set an item to Cancelled.",
+    "instructions": "Work tracking on this computer: portfolios > projects > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. Its artifacts are mockups and design documents the work follows: read the ones the work touches with the Artifact tool. When a task comes from a mockup or design, link it in artifacts rather than copying it into the description. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. There is no delete: set an item to Cancelled.",
     "tools": {
       "find": {
         "description": "Lists items one line each, next up first: ID, status, priority, title, epic, criteria done, what it waits on, the session on it. With no arguments: open items in the project of this session's folder. Filters combine.",
@@ -91,7 +91,7 @@
         }
       },
       "get": {
-        "description": "Everything about one or more items: status, project and folder, session, dependencies, links, description, acceptance criteria (numbered), where it stands (done, left, next) and the latest log lines. An epic also lists its tasks by project.",
+        "description": "Everything about one or more items: status, project and folder, session, dependencies, links, description, artifacts (its own and its epic's), acceptance criteria (numbered), where it stands (done, left, next) and the latest log lines. An epic also lists its tasks by project.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -197,7 +197,33 @@
                         }
                       ]
                     },
-                    "description": "\"branch feat/x\", \"PR #412\", \"commit b7f02c1\", \"file src/a.py\", \"artifact <url>\", or a URL."
+                    "description": "\"branch feat/x\", \"PR #412\", \"commit b7f02c1\", \"file src/a.py\", or a URL. Artifacts go in artifacts."
+                  },
+                  "artifacts": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "url": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string",
+                              "description": "What it is, like \"Settings page mockup\"."
+                            }
+                          },
+                          "required": [
+                            "url"
+                          ]
+                        }
+                      ]
+                    },
+                    "description": "Epics and tasks: claude.ai artifacts the work follows, like UI mockups and design documents. Link them rather than copying them into the description; an epic's artifacts show on its tasks too."
                   },
                   "key": {
                     "type": "string",
@@ -239,7 +265,7 @@
         }
       },
       "update": {
-        "description": "Changes several items in one call: fields, acceptance criteria, the handoff, a log line, links and dependencies. Criteria numbers are as get shows them. Replies one line per item, then what became ready. Setting a task to an active status records this session on it.",
+        "description": "Changes several items in one call: fields, acceptance criteria, the handoff, a log line, links, artifacts and dependencies. Criteria numbers are as get shows them. Replies one line per item, then what became ready. Setting a task to an active status records this session on it.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -360,6 +386,24 @@
                         }
                       }
                     }
+                  },
+                  "artifacts": {
+                    "type": "object",
+                    "properties": {
+                      "add": {
+                        "type": "array",
+                        "items": {},
+                        "description": "Addresses, or {url, label}. Adding one again with a label relabels it."
+                      },
+                      "remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Addresses."
+                      }
+                    },
+                    "description": "claude.ai artifacts the work follows: UI mockups, design documents."
                   },
                   "waitsOn": {
                     "type": "object",

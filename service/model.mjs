@@ -55,6 +55,26 @@ export const DEFAULT_ICON_FOR_GROUP = { 'not-started': 'todo', active: 'doing', 
 /** What a link points at. */
 export const LINK_KINDS = /** @type {const} */ (['branch', 'pr', 'commit', 'file', 'artifact', 'url'])
 
+/** The path of a claude.ai artifact page: /artifact/{id} or /code/artifact/{uuid}. */
+const ARTIFACT_PATH = /^\/(?:code\/)?artifact\/[A-Za-z0-9_-]+\/?$/
+
+/**
+ * Whether an address is a claude.ai artifact, the kind of page an `artifact`
+ * link points at: a mockup, a design document. Agents read these with their
+ * Artifact tool, which takes only claude.ai artifact links.
+ *
+ * @param {string} value
+ */
+export function isArtifactAddress(value) {
+  let url
+  try {
+    url = new URL(value.trim())
+  } catch {
+    return false
+  }
+  return url.protocol === 'https:' && url.hostname === 'claude.ai' && url.username === '' && url.password === '' && ARTIFACT_PATH.test(url.pathname)
+}
+
 export const ITEM_KINDS = /** @type {const} */ (['epic', 'task'])
 
 /**
