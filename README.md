@@ -47,6 +47,11 @@ for that run. It reaches nothing else.
    asking a session to plan the work; the session's `create` puts a whole plan
    in one call.
 
+A session can do steps 1 and 2 as well: `create` makes a portfolio (key, name,
+description) and its projects (portfolio, name, colour, folders) in the same
+call as the epics and tasks that go in them. A key already taken or a folder
+another project has refuses the whole call, saying why.
+
 There is no import: bringing work over from another tracker is done by hand,
 or by a session with `create`.
 
@@ -110,7 +115,9 @@ active status, across every portfolio.
   counts. The chevron folds a portfolio; the fold is remembered. **+** beside
   the heading makes a new portfolio: a name, a key (suggested from the name)
   and a description. It starts with the default statuses and priorities, and
-  its workflow opens so its projects can be added.
+  its workflow opens so its projects can be added. Hovering a portfolio shows
+  a **+** in place of its count that adds a project to it: its workflow opens
+  with a new project's editor open.
 - **Find** searches titles and descriptions across every portfolio, and an ID
   like `TC-12` puts that item first. Enter opens the first result.
 - **+** in the header opens a new task form. The project starts as the one on
@@ -122,7 +129,9 @@ Rows open a tab:
 - **A portfolio** shows a card per project, four stat cards (open tasks over 14
   days, in progress, waiting on another task, done this week), every epic with
   its tasks counted in each project, and the tasks in progress and waiting.
-  **Workflow** opens its settings; **New** opens the new task form in a dialog.
+  **Workflow** opens its settings; **New** opens the new task form in a dialog;
+  the **Add a project** card after the projects opens the workflow with a new
+  project's editor open.
 - **A portfolio's workflow** is its settings, edited in place: statuses in
   their four groups (icon, colour, group, which one new tasks start in),
   priorities, projects (name, colour, folders) and the portfolio's name, key
@@ -181,7 +190,7 @@ Sessions Helm starts get four tools, as `mcp__helm-plugin-trackr__<name>`:
 ```
 find    one line per item, next up first; no arguments = open items in this folder's project
 get     everything about one or more IDs; an epic lists its tasks by project
-create  epics and tasks in one call, naming each other by temporary refs
+create  portfolios, projects, epics and tasks in one call; epics and tasks name each other by temporary refs
 update  several items in one call; says what became ready
 ```
 

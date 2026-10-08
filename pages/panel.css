@@ -267,6 +267,40 @@ body {
   color: var(--helm-fg);
 }
 
+/* New project: shown in the count's place while the row is hovered or has
+ * focus, so the row does not shift. */
+.prow-add {
+  position: absolute;
+  top: 5px;
+  right: 25px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--helm-radius-well);
+  background: transparent;
+  color: var(--helm-fg-subtle);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.prow-add:hover {
+  background: var(--helm-hover);
+  color: var(--helm-fg);
+}
+
+.prow:hover .prow-add,
+.prow:focus-within .prow-add {
+  opacity: 1;
+}
+
+.prow:hover .prow-main .count,
+.prow:focus-within .prow-main .count {
+  visibility: hidden;
+}
+
 .projects {
   margin: 2px 0 6px 15px;
   padding-left: 9px;

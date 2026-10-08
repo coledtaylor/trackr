@@ -231,6 +231,16 @@ function portfolioRows(portfolio, keyWidth) {
     el(
       'button',
       {
+        class: 'prow-add',
+        title: `New project in ${portfolio.name}`,
+        attrs: { type: 'button', 'aria-label': `New project in ${portfolio.name}` },
+        on: { click: () => void openWorkflow(portfolio, 'new') }
+      },
+      [lineIcon(ICONS.plus, 12, 1.8)]
+    ),
+    el(
+      'button',
+      {
         class: 'chev',
         attrs: { type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-label': `${open ? 'Fold' : 'Unfold'} ${portfolio.name}` },
         on: { click: () => setCollapsed(portfolio.uid, open) }
@@ -244,7 +254,7 @@ function portfolioRows(portfolio, keyWidth) {
     { class: 'projects' },
     portfolio.projects.length === 0
       ? [
-          el('button', { class: 'jrow jrow-add', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio) } }, [
+          el('button', { class: 'jrow jrow-add', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio, 'new') } }, [
             lineIcon(ICONS.plus, 10, 2),
             el('span', { class: 'work-ellip work-grow', text: 'Add a project' })
           ])
@@ -370,7 +380,7 @@ async function openTask() {
       toast('Add a portfolio first.')
       void openNewPortfolio()
     } else {
-      toast('Add a project first: the portfolio’s Workflow has them.')
+      toast('Add a project first: + on a portfolio’s row makes one.')
     }
     return
   }

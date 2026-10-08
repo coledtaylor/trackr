@@ -124,6 +124,9 @@
 .pf-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(max(168px, calc((100% - 32px) / 5)), 1fr));
+  /* Every row as tall as a project card, so "Add a project" is one even
+   * when it wraps onto a row of its own. */
+  grid-auto-rows: 1fr;
   gap: 8px;
 }
 
@@ -145,6 +148,20 @@
 
 .pf-card:hover {
   border-color: var(--helm-border-strong);
+}
+
+.pf-card-add {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-style: dashed;
+  background: transparent;
+  color: var(--helm-fg-subtle);
+}
+
+.pf-card-add:hover {
+  color: var(--helm-fg);
 }
 
 .pf-card-name {

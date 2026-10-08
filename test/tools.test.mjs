@@ -128,6 +128,97 @@ describe('create', () => {
   })
 })
 
+describe('create portfolios and projects', () => {
+  const NEWCO = join(HOME, 'code', 'newco')
+
+  test('a portfolio starts with the default statuses and priorities, and the reply has its key', () => {
+    assert.equal(
+      call('create', { items: [{ kind: 'portfolio', key: 'nw', name: 'Newco', description: 'The new thing' }] }, elsewhere),
+      'NW portfolio Newco · statuses Backlog, Planning, To do, In progress, In review, Blocked, Done, Cancelled · priorities Urgent, High, Normal, Low'
+    )
+    const portfolio = store.getPortfolio('NW')
+    assert.equal(portfolio.description, 'The new thing')
+    assert.equal(portfolio.statuses.find((status) => status.isDefault)?.name, 'Backlog')
+    assert.equal(portfolio.priorities.find((priority) => priority.isDefault)?.name, 'Normal')
+  })
+
+  test('a project goes in the portfolio it names, with its folders', () => {
+    const reply = call(
+      'create',
+      { items: [{ kind: 'project', portfolio: 'tc', name: 'Mobile', colour: 'Green', folders: [join(HOME, 'code', 'tidecast-mobile'), 'docs'] }] },
+      elsewhere
+    )
+    assert.equal(reply, 'project TC/Mobile · ~/code/tidecast-mobile, ~/Downloads/docs')
+    const mobile = store.getProject('Mobile', 'TC')
+    assert.equal(mobile.colour, 'green')
+    assert.deepEqual(mobile.folders, [join(HOME, 'code', 'tidecast-mobile'), join(HOME, 'Downloads', 'docs')])
+    assert.equal(call('create', { items: [{ kind: 'project', portfolio: 'TC', name: 'Loose' }] }, elsewhere), 'project TC/Loose · no folders: no session lands in it until it has one')
+  })
+
+  test('a key already taken is refused with the reason, and nothing in the call is created', () => {
+    const items = [{ kind: 'portfolio', key: 'NW', name: 'Newco' }, { kind: 'portfolio', key: 'TC', name: 'Again' }, { title: 'A task', project: 'Desktop' }]
+    assert.throws(() => call('create', { items }, s3), { code: 'conflict', message: 'items[1]: A portfolio with the key TC already exists.' })
+    assert.deepEqual(store.listPortfolios().map((portfolio) => portfolio.key), ['TC'])
+    assert.equal(store.findItems({}).total, 0)
+  })
+
+  test('a folder another project owns is refused with the reason, and nothing in the call is created', () => {
+    const items = [
+      { kind: 'portfolio', key: 'NW', name: 'Newco' },
+      { kind: 'project', portfolio: 'NW', name: 'App', folders: [NEWCO] },
+      { kind: 'project', portfolio: 'NW', name: 'Web', folders: [DESKTOP] }
+    ]
+    assert.throws(() => call('create', { items }, s3), { code: 'conflict', message: `items[2]: ${DESKTOP} already belongs to TideCast/Desktop.` })
+    assert.deepEqual(store.listPortfolios().map((portfolio) => portfolio.key), ['TC'])
+    assert.equal(store.resolveFolder(NEWCO), null)
+  })
+
+  test('epics and tasks can name a portfolio and project made in the same call, in any order', () => {
+    const session = { id: 'sess-nw', name: 'newco setup', cwd: join(NEWCO, 'src') }
+    const reply = call(
+      'create',
+      {
+        items: [
+          { ref: 'e', kind: 'epic', title: 'First release', project: 'NW/App' },
+          { epic: 'e', title: 'Scaffold the app', ac: ['It builds'] },
+          { title: 'Lands by folder' },
+          { kind: 'project', portfolio: 'NW', name: 'App', folders: [NEWCO] },
+          { kind: 'portfolio', key: 'NW', name: 'Newco' }
+        ]
+      },
+      session
+    )
+    assert.equal(
+      reply,
+      [
+        'NW portfolio Newco · statuses Backlog, Planning, To do, In progress, In review, Blocked, Done, Cancelled · priorities Urgent, High, Normal, Low',
+        'project NW/App · ~/code/newco',
+        'NW-1 epic First release (App) · NW-2',
+        'NW-3 Lands by folder (App)'
+      ].join('\n')
+    )
+    assert.equal(store.getItem('NW-2').status.name, 'Backlog')
+    assert.equal(store.getItem('NW-3').project.uid, store.getProject('App', 'NW').uid)
+  })
+
+  test('refuses an unknown kind, fields of another kind, and a colour that is not a project colour', () => {
+    assert.throws(() => call('create', { items: [{ kind: 'team', name: 'x' }] }, s3), {
+      message: 'items[0].kind is task, epic, project or portfolio, not "team".'
+    })
+    assert.throws(() => call('create', { items: [{ kind: 'portfolio', key: 'NW', name: 'Newco', title: 'x' }] }, s3), {
+      message: 'items[0] does not take "title". It takes kind, key, name, description.'
+    })
+    assert.throws(() => call('create', { items: [{ kind: 'project', name: 'App' }] }, s3), { message: 'items[0].portfolio must be text.' })
+    assert.throws(() => call('create', { items: [{ kind: 'project', portfolio: 'TC', name: 'App', colour: 'danger' }] }, s3), {
+      message: 'items[0].colour is one of blue, orange, green, amber, pink.'
+    })
+    assert.throws(() => call('create', { items: [{ kind: 'project', portfolio: 'XX', name: 'App' }] }, s3), {
+      code: 'not-found',
+      message: 'items[0]: There is no portfolio XX.'
+    })
+  })
+})
+
 describe('get', () => {
   /** The task from the design reference, part way through. */
   function midway() {

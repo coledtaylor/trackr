@@ -111,7 +111,7 @@
         }
       },
       "create": {
-        "description": "Creates epics and tasks in one call and replies with their IDs. Items can name each other by a temporary ref before they have IDs: epic and waitsOn take a ref or an ID. project defaults to the epic's, then to this session's folder's project. status and priority default to the portfolio's defaults.",
+        "description": "Creates portfolios, projects, epics and tasks in one call and replies with their keys and IDs. Portfolios are made first, then projects, then epics and tasks, so an item can name a project made in the same call. A portfolio (kind portfolio: key, name, description) starts with the default statuses and priorities. A project (kind project: portfolio, name, colour, folders) goes in the portfolio whose key it names; a session started in one of its folders lands in it. Epics and tasks can name each other by a temporary ref before they have IDs: epic and waitsOn take a ref or an ID. project defaults to the epic's, then to this session's folder's project. status and priority default to the portfolio's defaults.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -128,18 +128,22 @@
                     "type": "string",
                     "enum": [
                       "task",
-                      "epic"
+                      "epic",
+                      "project",
+                      "portfolio"
                     ],
                     "description": "Default task."
                   },
                   "project": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Epics and tasks: a project name, or KEY/Name."
                   },
                   "epic": {
                     "type": "string"
                   },
                   "title": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Epics and tasks."
                   },
                   "description": {
                     "type": "string"
@@ -192,11 +196,38 @@
                       ]
                     },
                     "description": "\"branch feat/x\", \"PR #412\", \"commit b7f02c1\", \"file src/a.py\", \"artifact <url>\", or a URL."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "Portfolios: what IDs start with, a letter then up to nine letters or digits, like TC."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Portfolios and projects."
+                  },
+                  "portfolio": {
+                    "type": "string",
+                    "description": "Projects: the key of the portfolio it goes in."
+                  },
+                  "colour": {
+                    "type": "string",
+                    "enum": [
+                      "blue",
+                      "orange",
+                      "green",
+                      "amber",
+                      "pink"
+                    ],
+                    "description": "Projects. Default: the first one the portfolio does not use."
+                  },
+                  "folders": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Projects: absolute paths, ~/..., or paths relative to this session's folder. A folder belongs to one project only."
                   }
-                },
-                "required": [
-                  "title"
-                ]
+                }
               }
             }
           },

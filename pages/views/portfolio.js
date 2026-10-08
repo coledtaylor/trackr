@@ -82,12 +82,24 @@ function head(overview) {
     portfolio.projects.length === 0
       ? el('div', { class: 'pf-none' }, [
           el('p', { class: 'quiet', text: 'No projects yet. Tasks live in projects, and a project’s folders tell sessions where they are.' }),
-          el('button', { class: 'helm-button pf-action', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio) } }, [
+          el('button', { class: 'helm-button pf-action', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio, 'new') } }, [
             lineIcon(ICONS.plus, 13, 1.8),
             'Add a project'
           ])
         ])
-      : el('div', { class: 'pf-cards' }, portfolio.projects.map(projectCard))
+      : el('div', { class: 'pf-cards' }, [...portfolio.projects.map(projectCard), addProjectCard(portfolio)])
+  ])
+}
+
+/**
+ * The last card: a new project, made in the workflow's project editor.
+ *
+ * @param {{ uid: number, name: string }} portfolio
+ */
+function addProjectCard(portfolio) {
+  return el('button', { class: 'pf-card pf-card-add', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio, 'new') } }, [
+    lineIcon(ICONS.plus, 13, 1.8),
+    'Add a project'
   ])
 }
 

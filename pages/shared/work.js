@@ -97,12 +97,20 @@ const FOCUS = 'trackr.workflow.focus'
 const FOCUS_MS = 15_000
 
 /**
+ * A project editor a workflow page is asked to open: an existing project's
+ * by uid, or `'new'` for a new project's.
+ *
+ * @typedef {number | 'new'} ProjectFocus
+ */
+
+/**
  * A portfolio's workflow: its statuses, priorities, projects and key. With
- * `project`, that project's editor opens on it: the page takes the request
- * when it loads, or at once if it is already open.
+ * `project`, that project's editor opens on it, or the new project editor
+ * for `'new'`: the page takes the request when it loads, or at once if it is
+ * already open.
  *
  * @param {{ uid: number, name: string }} portfolio
- * @param {number} [project]
+ * @param {ProjectFocus} [project]
  */
 export function openWorkflow(portfolio, project) {
   if (project !== undefined) {
@@ -117,18 +125,19 @@ export function openWorkflow(portfolio, project) {
 }
 
 /**
- * The project whose editor a workflow page was asked to open, once: taking it
+ * The project editor a workflow page was asked to open, once: taking it
  * clears it. Null when there is none for this portfolio, or it is stale.
  *
  * @param {number} portfolio
- * @returns {number | null}
+ * @returns {ProjectFocus | null}
  */
 export function takeFocus(portfolio) {
   try {
     const raw = JSON.parse(localStorage.getItem(FOCUS) ?? 'null')
     if (raw === null || raw.portfolio !== portfolio) return null
     localStorage.removeItem(FOCUS)
-    return Date.now() - raw.at < FOCUS_MS && typeof raw.project === 'number' ? raw.project : null
+    if (Date.now() - raw.at >= FOCUS_MS) return null
+    return typeof raw.project === 'number' || raw.project === 'new' ? raw.project : null
   } catch {
     return null
   }

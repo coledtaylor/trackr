@@ -113,13 +113,17 @@ export function createWorkflowView(root, uid, host) {
   }
 
   /**
-   * Opens the editor of a project another page asked for, if it is one of
-   * this portfolio's.
+   * Opens the project editor another page asked for: the new project's, or
+   * one of this portfolio's projects'.
    *
    * @returns {boolean} whether it did
    */
   function takeProjectFocus() {
     const project = takeFocus(uid)
+    if (project === 'new') {
+      startEditor('project.new')
+      return true
+    }
     if (project === null || !data?.portfolio.projects.some((candidate) => candidate.uid === project)) return false
     startEditor(`project.${project}`)
     return true

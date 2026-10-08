@@ -1,8 +1,9 @@
 import { homedir } from 'node:os'
+import { isAbsolute, resolve } from 'node:path'
 import { SEP, changeParts } from './changes.mjs'
-import { invalid, notFound } from './errors.mjs'
+import { WorkError, invalid, notFound } from './errors.mjs'
 import { displayFolder } from './folders.mjs'
-import { ITEM_ID, LINK_KINDS, OPEN_GROUPS } from './model.mjs'
+import { ITEM_ID, LINK_KINDS, OPEN_GROUPS, PROJECT_COLOURS } from './model.mjs'
 
 /**
  * The four tools Claude Code sessions call: find, get, create and update.
@@ -360,12 +361,20 @@ function linkText(link) {
 // -----------------------------------------------------------------------------
 // create
 
+const CREATE_KINDS = /** @type {const} */ (['task', 'epic', 'project', 'portfolio'])
 const CREATE_FIELDS = ['ref', 'kind', 'project', 'epic', 'title', 'description', 'status', 'priority', 'ac', 'waitsOn', 'links']
+const PORTFOLIO_FIELDS = ['kind', 'key', 'name', 'description']
+const PROJECT_FIELDS = ['kind', 'portfolio', 'name', 'colour', 'folders']
+
+/** @typedef {{ input: Record<string, unknown>, where: string }} CreateInput */
 
 /**
- * Epics and tasks in one call. Items name each other with a temporary `ref`
- * before they have IDs; `epic` and `waitsOn` take a ref or an ID. All of it
- * lands or none of it does.
+ * Portfolios, projects, epics and tasks in one call. Portfolios are made
+ * first, then projects, then epics and tasks, whatever order they are listed
+ * in, so an item can name a project made in the same call and a project a
+ * portfolio. Epics and tasks name each other with a temporary `ref` before
+ * they have IDs; `epic` and `waitsOn` take a ref or an ID. All of it lands or
+ * none of it does.
  *
  * @param {Context} context
  * @param {Record<string, unknown>} args
@@ -373,50 +382,160 @@ const CREATE_FIELDS = ['ref', 'kind', 'project', 'epic', 'title', 'description',
 function create(context, args) {
   only(args, ['items'], 'create')
   const inputs = batch(args.items, 'create')
-  const { store, session } = context
-  return store.transaction(() => {
-    /** @type {Map<string, number>} */
-    const refs = new Map()
-    /** @type {{ input: Record<string, unknown>, uid: number }[]} */
-    const made = []
-
-    inputs.forEach((input, index) => {
-      const where = `items[${index}]`
-      only(input, CREATE_FIELDS, where)
-      const ref = input.ref === undefined ? null : stringArg(input.ref, `${where}.ref`)
-      if (ref !== null) {
-        if (ITEM_ID.test(ref)) throw invalid(`${where}.ref ${ref} looks like an ID. Use a short name like "a".`)
-        if (refs.has(ref)) throw invalid(`The ref ${ref} is used twice.`)
-      }
-      const project = projectFor(context, input, refs, where)
-      const item = store.createItem({
-        kind: /** @type {any} */ (input.kind),
-        project,
-        title: /** @type {string} */ (input.title),
-        description: /** @type {string | undefined} */ (input.description),
-        status: /** @type {string | undefined} */ (input.status),
-        priority: /** @type {string | undefined} */ (input.priority),
-        criteria: input.ac === undefined ? undefined : stringList(input.ac, `${where}.ac`),
-        links: input.links === undefined ? undefined : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`)),
-        by: session.name
-      })
-      if (ref !== null) refs.set(ref, item.uid)
-      made.push({ input, uid: item.uid })
-    })
-
-    const resolve = (/** @type {unknown} */ value, /** @type {string} */ where) => itemFrom(value, refs, where)
-    made.forEach(({ input, uid }, index) => {
-      if (input.epic !== undefined) store.updateItem(uid, { epic: resolve(input.epic, `items[${index}].epic`) })
-      if (input.waitsOn !== undefined) {
-        for (const other of listArg(input.waitsOn, `items[${index}].waitsOn`)) store.addDependency(uid, resolve(other, `items[${index}].waitsOn`))
-      }
-      const item = store.getItem(uid, { logLimit: 0 })
-      if (item.status.group === 'active') store.claim(uid, session)
-      store.appendLog(uid, { text: 'Created', by: session.name })
-    })
-
-    return createReply(context, made.map(({ uid }) => store.getItem(uid, { logLimit: 0 })))
+  /** @type {{ portfolio: CreateInput[], project: CreateInput[], item: CreateInput[] }} */
+  const groups = { portfolio: [], project: [], item: [] }
+  inputs.forEach((input, index) => {
+    const where = `items[${index}]`
+    const kind = createKind(input.kind, where)
+    groups[kind === 'portfolio' || kind === 'project' ? kind : 'item'].push({ input, where })
   })
+  return context.store.transaction(() => {
+    const lines = [
+      ...groups.portfolio.map((entry) => createPortfolio(context, entry)),
+      ...groups.project.map((entry) => createProject(context, entry))
+    ]
+    // A new project's folder may hold the session's: work it out again.
+    if (groups.project.length > 0) context.hereCache = undefined
+    if (groups.item.length > 0) lines.push(createItems(context, groups.item))
+    return lines.join('\n')
+  })
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {typeof CREATE_KINDS[number]}
+ */
+function createKind(value, where) {
+  if (value === undefined) return 'task'
+  if (!CREATE_KINDS.includes(/** @type {any} */ (value))) {
+    throw invalid(`${where}.kind is ${CREATE_KINDS.join(', ').replace(/, (?=[^,]*$)/, ' or ')}, not ${JSON.stringify(value)}.`)
+  }
+  return /** @type {typeof CREATE_KINDS[number]} */ (value)
+}
+
+/**
+ * A portfolio with the default statuses and priorities:
+ * NW portfolio Newco · statuses Backlog, …, Cancelled · priorities Urgent, High, Normal, Low
+ *
+ * @param {Context} context
+ * @param {CreateInput} entry
+ */
+function createPortfolio(context, { input, where }) {
+  only(input, PORTFOLIO_FIELDS, where)
+  const portfolio = refusedAt(where, () =>
+    context.store.createPortfolio({
+      key: stringArg(input.key, `${where}.key`),
+      name: stringArg(input.name, `${where}.name`),
+      description: input.description === undefined ? undefined : textArg(input.description, `${where}.description`)
+    })
+  )
+  return [
+    `${portfolio.key} portfolio ${portfolio.name}`,
+    `statuses ${portfolio.statuses.map((status) => status.name).join(', ')}`,
+    `priorities ${portfolio.priorities.map((priority) => priority.name).join(', ')}`
+  ].join(SEP)
+}
+
+/**
+ * A project in a named portfolio, with its folders:
+ * project NW/Desktop · ~/code/newco
+ *
+ * @param {Context} context
+ * @param {CreateInput} entry
+ */
+function createProject(context, { input, where }) {
+  only(input, PROJECT_FIELDS, where)
+  const portfolio = stringArg(input.portfolio, `${where}.portfolio`)
+  const name = stringArg(input.name, `${where}.name`)
+  /** @type {string | undefined} */
+  let colour
+  if (input.colour !== undefined) {
+    colour = typeof input.colour === 'string' ? input.colour.trim().toLowerCase() : ''
+    if (!PROJECT_COLOURS.includes(/** @type {any} */ (colour))) throw invalid(`${where}.colour is one of ${PROJECT_COLOURS.join(', ')}.`)
+  }
+  const folders = input.folders === undefined ? undefined : stringList(input.folders, `${where}.folders`).map((folder) => folderFor(context, folder))
+  const project = refusedAt(where, () => context.store.createProject({ portfolio, name, colour, folders }))
+  const place = project.folders.length > 0 ? project.folders.map((folder) => context.folder(folder)).join(', ') : 'no folders: no session lands in it until it has one'
+  return `project ${project.portfolio.key}/${project.name}${SEP}${place}`
+}
+
+/**
+ * A folder as an agent writes it: absolute, under `~`, or relative to the
+ * session's folder.
+ *
+ * @param {Context} context
+ * @param {string} folder
+ */
+function folderFor(context, folder) {
+  if (folder === '~' || /^~[\\/]/.test(folder) || isAbsolute(folder) || !context.session.cwd) return folder
+  return resolve(context.session.cwd, folder)
+}
+
+/**
+ * Runs `fn`, saying which item a refusal is about.
+ *
+ * @template T
+ * @param {string} where
+ * @param {() => T} fn
+ * @returns {T}
+ */
+function refusedAt(where, fn) {
+  try {
+    return fn()
+  } catch (error) {
+    if (error instanceof WorkError) throw new WorkError(error.code, `${where}: ${error.message}`)
+    throw error
+  }
+}
+
+/**
+ * Epics and tasks, after any portfolios and projects of the same call.
+ *
+ * @param {Context} context
+ * @param {CreateInput[]} inputs
+ */
+function createItems(context, inputs) {
+  const { store, session } = context
+  /** @type {Map<string, number>} */
+  const refs = new Map()
+  /** @type {{ input: Record<string, unknown>, where: string, uid: number }[]} */
+  const made = []
+
+  for (const { input, where } of inputs) {
+    only(input, CREATE_FIELDS, where)
+    const ref = input.ref === undefined ? null : stringArg(input.ref, `${where}.ref`)
+    if (ref !== null) {
+      if (ITEM_ID.test(ref)) throw invalid(`${where}.ref ${ref} looks like an ID. Use a short name like "a".`)
+      if (refs.has(ref)) throw invalid(`The ref ${ref} is used twice.`)
+    }
+    const project = projectFor(context, input, refs, where)
+    const item = store.createItem({
+      kind: /** @type {any} */ (input.kind),
+      project,
+      title: /** @type {string} */ (input.title),
+      description: /** @type {string | undefined} */ (input.description),
+      status: /** @type {string | undefined} */ (input.status),
+      priority: /** @type {string | undefined} */ (input.priority),
+      criteria: input.ac === undefined ? undefined : stringList(input.ac, `${where}.ac`),
+      links: input.links === undefined ? undefined : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`)),
+      by: session.name
+    })
+    if (ref !== null) refs.set(ref, item.uid)
+    made.push({ input, where, uid: item.uid })
+  }
+
+  for (const { input, where, uid } of made) {
+    if (input.epic !== undefined) store.updateItem(uid, { epic: itemFrom(input.epic, refs, `${where}.epic`) })
+    if (input.waitsOn !== undefined) {
+      for (const other of listArg(input.waitsOn, `${where}.waitsOn`)) store.addDependency(uid, itemFrom(other, refs, `${where}.waitsOn`))
+    }
+    const item = store.getItem(uid, { logLimit: 0 })
+    if (item.status.group === 'active') store.claim(uid, session)
+    store.appendLog(uid, { text: 'Created', by: session.name })
+  }
+
+  return createReply(context, made.map(({ uid }) => store.getItem(uid, { logLimit: 0 })))
 }
 
 /**
@@ -754,6 +873,17 @@ function listArg(value, where) {
 function stringArg(value, where) {
   if (typeof value !== 'string' || value.trim() === '') throw invalid(`${where} must be text.`)
   return value.trim()
+}
+
+/**
+ * Text that may be empty.
+ *
+ * @param {unknown} value
+ * @param {string} where
+ */
+function textArg(value, where) {
+  if (typeof value !== 'string') throw invalid(`${where} must be text.`)
+  return value
 }
 
 /**
