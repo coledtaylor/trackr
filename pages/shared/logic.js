@@ -286,6 +286,78 @@ export function sessionPrompt(item) {
   return `work on ${item.id}`
 }
 
+/**
+ * The folder a session on a project starts in: its first, the one the pages
+ * show. Null when the project has none.
+ *
+ * @param {{ folders: string[] }} project
+ * @returns {string | null}
+ */
+export function sessionFolder(project) {
+  return project.folders[0] ?? null
+}
+
+/**
+ * @typedef {'busy' | 'idle' | 'waiting' | 'shell' | null} Activity
+ * @typedef {{ id: string, state: 'running' | 'ended', activity: Activity }} ListedSession
+ * @typedef {{ running: true, activity: Activity } | { running: false }} LiveState
+ */
+
+/**
+ * Whether the session holding a claim still runs, from Helm's session list.
+ * Trackr's tools are served only to sessions Helm hosts, and Helm lists every
+ * one it started since it opened, so a claim missing from the list is a
+ * session that has ended: before Helm last started, or long enough ago to
+ * fall off the list. Null when Helm's list could not be read.
+ *
+ * @param {string} id the session id the claim recorded from a tool call
+ * @param {ListedSession[] | null} sessions
+ * @returns {LiveState | null}
+ */
+export function liveState(id, sessions) {
+  if (sessions === null) return null
+  /** @type {ListedSession | null} */
+  let found = null
+  // The list is oldest first; the latest entry for an id is the one that counts.
+  for (const session of sessions) if (session.id === id) found = session
+  return found !== null && found.state === 'running' ? { running: true, activity: found.activity } : { running: false }
+}
+
+const ACTIVITY = { busy: 'working', idle: 'idle', waiting: 'waiting for you', shell: 'running a command' }
+
+/**
+ * How a session's state reads beside its name: "working", "not running".
+ * When Helm's list could not be read, when the session last wrote instead.
+ *
+ * @param {LiveState | null} live
+ * @param {string} lastActive when it last wrote, or ''
+ * @returns {string}
+ */
+export function sessionPhrase(live, lastActive) {
+  if (live === null) return lastActive ? `last active ${lastActive}` : ''
+  if (!live.running) return 'not running'
+  return live.activity === null ? 'running' : ACTIVITY[live.activity]
+}
+
+/**
+ * The address `helm.open` takes from a link's value: an `https` address with
+ * no user name or password, up to 2048 characters. Null for anything else,
+ * which the page copies instead.
+ *
+ * @param {string} value
+ * @returns {string | null}
+ */
+export function openableAddress(value) {
+  const text = value.trim()
+  if (text.length > 2048 || !/^https:\/\//i.test(text)) return null
+  try {
+    const url = new URL(text)
+    return url.protocol === 'https:' && url.username === '' && url.password === '' && url.hostname !== '' ? text : null
+  } catch {
+    return null
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The workflow page
 

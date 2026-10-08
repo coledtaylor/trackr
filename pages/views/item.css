@@ -217,6 +217,12 @@ button.it-chip:hover {
   color: var(--helm-accent-text);
 }
 
+.it-chip-session.is-stopped {
+  border-color: var(--helm-border-strong);
+  background: var(--helm-surface-raised);
+  color: var(--helm-fg-muted);
+}
+
 .it-chip-x {
   width: 18px;
   height: 18px;
@@ -926,6 +932,10 @@ button.it-chip:hover {
 .it-prompt-hint .it-mono {
   font-size: 10.5px;
   color: var(--helm-fg-muted);
+}
+
+.it-prompt-hint .it-nowrap {
+  white-space: nowrap;
 }
 
 .it-foot {

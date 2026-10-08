@@ -14,7 +14,7 @@
 
 import { TRASH, confirmDanger } from '../shared/dialog.js'
 import { ICONS, el, lineIcon, priorityGlyph, selectFace, statusIcon, swatch, toast } from '../shared/dom.js'
-import { LINK_KINDS, age, codeSpans, linkText, paragraphs, priorityMark, timeLabel } from '../shared/logic.js'
+import { LINK_KINDS, age, codeSpans, linkText, openableAddress, paragraphs, priorityMark, timeLabel } from '../shared/logic.js'
 import { announceChange, rpc } from '../shared/work.js'
 
 /** Who the person is in the log. */
@@ -553,8 +553,9 @@ export function propertiesCard(editing, data) {
 const LINK_ICONS = { branch: ICONS.branch, pr: ICONS.pr, commit: ICONS.commit, file: ICONS.file, artifact: ICONS.external, url: ICONS.external }
 
 /**
- * The links, each copied when pressed (a plugin cannot open them), and a
- * form to add one.
+ * The links, and a form to add one. An `https` address opens in Helm's
+ * Browser tab when pressed and has a button to copy it; anything else (a
+ * branch, a commit, a file) is copied when pressed.
  *
  * @param {Editing} editing
  * @param {Item} item
@@ -576,10 +577,17 @@ export function linksCard(editing, item) {
  */
 function linkRow(editing, link) {
   const text = linkText(link)
+  const address = openableAddress(link.value)
+  const copy = () => void editing.copy(link.value, link.value)
   return el('div', { class: 'it-link' }, [
     el(
       'button',
-      { class: 'it-link-main', title: `${link.value}\nPress to copy`, attrs: { type: 'button' }, on: { click: () => void editing.copy(link.value, link.value) } },
+      {
+        class: 'it-link-main',
+        title: `${link.value}\n${address === null ? 'Press to copy' : 'Press to open in the Browser tab'}`,
+        attrs: { type: 'button' },
+        on: { click: address === null ? copy : () => void openLink(address) }
+      },
       [
         el('span', { class: 'it-link-icon' }, [lineIcon(LINK_ICONS[link.kind] ?? ICONS.external, 12, 2)]),
         el('span', { class: 'it-link-text' }, [
@@ -588,8 +596,24 @@ function linkRow(editing, link) {
         ])
       ]
     ),
+    address === null ? null : iconButton('Copy the address', ICONS.copy, copy, 'it-remove'),
     iconButton('Remove this link', ICONS.close, () => void editing.edit({ links: { remove: [link.uid] } }), 'it-remove')
   ])
+}
+
+/**
+ * Opens an address in Helm's Browser tab. Called from the click: Helm takes
+ * it only from one. A second press within the second Helm allows is dropped.
+ *
+ * @param {string} address
+ */
+async function openLink(address) {
+  try {
+    await helm.open(address)
+  } catch (error) {
+    if (/** @type {{ code?: string }} */ (error).code === 'busy') return
+    toast(`Could not open ${address}: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 /** @param {Editing} editing */

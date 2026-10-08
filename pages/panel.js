@@ -13,6 +13,7 @@
 import { ICONS, el, fill, itemRow, lineIcon, statusIcon, swatch, toast } from './shared/dom.js'
 import { PORTFOLIO_KEY, defaultProject, exactIdFirst, openCount, suggestKey, timeLabel } from './shared/logic.js'
 import { lastProject, taskChoices, taskForm } from './shared/new-task.js'
+import { markSession } from './shared/sessions.js'
 import { announceChange, listen, openItem, openPortfolio, openProject, openWorkflow, post, rpc } from './shared/work.js'
 
 /**
@@ -170,7 +171,7 @@ function doingCard(item) {
         swatch(item.project.colour, 7),
         el('span', { text: item.project.name }),
         session ? el('span', { text: '·' }) : null,
-        session ? el('span', { class: 'work-ellip dn-session', text: session.name }) : null
+        session ? markSession(el('span', { class: 'work-ellip dn-session', text: session.name }), session, activeAt) : null
       ])
     ]
   )

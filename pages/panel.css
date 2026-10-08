@@ -157,6 +157,10 @@ body {
   color: var(--helm-accent-text);
 }
 
+.dn-meta > .dn-session.is-stopped {
+  color: var(--helm-fg-subtle);
+}
+
 /* Portfolios and projects */
 
 .prow,

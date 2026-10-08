@@ -6,6 +6,8 @@
   "version": "0.1.0",
   "description": "Portfolios, projects, epics and tasks, kept in one SQLite file on this computer, with tools for Claude Code sessions.",
   "icon": "icon.svg",
+  "pageStrip": true,
+  "sessions": ["start", "list"],
   "rail": {
     "title": "Trackr",
     "panel": "main"

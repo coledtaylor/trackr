@@ -193,6 +193,13 @@ button {
   color: var(--helm-accent-text);
 }
 
+/* The session holding a task has ended: it is still named, not shown as live. */
+.work-chip-session.is-stopped,
+.work-session-tile.is-stopped {
+  background: var(--helm-surface-raised);
+  color: var(--helm-fg-subtle);
+}
+
 .work-waits {
   flex-shrink: 0;
   display: inline-flex;

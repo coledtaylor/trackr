@@ -2,12 +2,13 @@
 /**
  * A task: chips under the title, the description, acceptance criteria, where
  * it stands with the log under it, and beside them its fields, dependencies,
- * links and the prompt that starts a session on it. The v2 board's task
+ * links and the button that starts a session on it. The v2 board's task
  * page; everything on it is edited in place.
  */
 
 import { ICONS, el, lineIcon, svg, swatch, toast } from '../shared/dom.js'
-import { sessionPrompt, timeLabel } from '../shared/logic.js'
+import { sessionFolder, sessionPrompt, timeLabel } from '../shared/logic.js'
+import { markSession } from '../shared/sessions.js'
 import { openItem, openPortfolio, openProject, rpc } from '../shared/work.js'
 import {
   YOU,
@@ -63,7 +64,7 @@ export function taskParts(data, editing, state, redraw) {
         propertiesCard(editing, data),
         dependenciesCard(data, editing, state, redraw),
         linksCard(editing, data.item),
-        promptBlock(data, editing),
+        promptBlock(data),
         el('span', { class: 'it-grow' }),
         stamp(editing, data.item)
       ])
@@ -117,8 +118,8 @@ function head(data, editing) {
 }
 
 /**
- * The session on the task, and a way to let it go. A plugin cannot tell
- * whether a session is still running, so it says when it last wrote.
+ * The session on the task, what it is doing now by Helm's session list, and
+ * a way to let it go.
  *
  * @param {Item} item
  * @param {Editing} editing
@@ -126,9 +127,9 @@ function head(data, editing) {
 function sessionHolder(item, editing) {
   const session = /** @type {NonNullable<Item['session']>} */ (item.session)
   const when = session.activeAt ? timeLabel(session.activeAt) : ''
-  return el('span', { class: 'it-chip it-chip-session', title: when ? `${session.name}, last active ${when}` : session.name }, [
+  const holder = el('span', { class: 'it-chip it-chip-session' }, [
     lineIcon(ICONS.session, 11, 2.2),
-    el('span', { class: 'work-ellip', text: when ? `${session.name} · last active ${when}` : session.name }),
+    el('span', { class: 'work-ellip' }, [session.name, el('span', { attrs: { 'data-session-state': true } })]),
     el(
       'button',
       {
@@ -140,6 +141,7 @@ function sessionHolder(item, editing) {
       [lineIcon(ICONS.close, 10, 2.2)]
     )
   ])
+  return markSession(holder, session, when)
 }
 
 /**
@@ -525,29 +527,49 @@ async function search(data, editing, state, redraw) {
 // Starting a session
 
 /**
- * Helm cannot start a session for a plugin yet, so the button copies the
- * prompt and says where to paste it.
+ * Starts a session on the task in its project's first folder, with the
+ * prompt that has it read the task first. Helm shows what it will run and the
+ * user starts it or not. A project with no folder has nowhere to start one.
  *
  * @param {ItemOverview} data
- * @param {Editing} editing
  */
-function promptBlock(data, editing) {
+function promptBlock(data) {
   const { item } = data
   const prompt = sessionPrompt(item)
-  const place = data.projects.find((project) => project.uid === item.project.uid)?.place ?? null
+  const project = data.projects.find((candidate) => candidate.uid === item.project.uid)
+  const folder = project === undefined ? null : sessionFolder(project)
   return el('div', { class: 'it-prompt' }, [
     el(
       'button',
-      { class: 'helm-button it-prompt-button', attrs: { type: 'button', 'data-variant': 'primary' }, on: { click: () => void editing.copy(prompt, `“${prompt}”`) } },
-      [lineIcon(ICONS.session, 13, 1.7), `Copy the prompt for ${item.id}`]
+      {
+        class: 'helm-button it-prompt-button',
+        attrs: { type: 'button', 'data-variant': 'primary', disabled: folder === null },
+        on: { click: () => (folder === null ? undefined : void startSession(folder, item)) }
+      },
+      [lineIcon(ICONS.session, 13, 1.7), `Start a session on ${item.id}`]
     ),
-    el('p', { class: 'it-hint it-prompt-hint' }, [
-      'Paste ',
-      el('span', { class: 'it-mono', text: prompt }),
-      ' into a new session in ',
-      place ? el('span', { class: 'it-mono', text: place }) : `the ${item.project.name} folder`,
-      '. A plugin cannot start one yet.'
-    ])
+    el(
+      'p',
+      { class: 'it-hint it-prompt-hint' },
+      folder === null
+        ? [`${item.project.name} has no folder to start a session in. Add one on the portfolio's workflow page.`]
+        : ['Opens Claude Code in ', el('span', { class: 'it-mono', text: project?.place ?? folder }), ' with ', el('span', { class: 'it-mono it-nowrap', text: prompt }), '. Helm asks first.']
+    )
   ])
+}
+
+/**
+ * Called from the click: Helm takes the request only from one.
+ *
+ * @param {string} cwd
+ * @param {Item} item
+ */
+async function startSession(cwd, item) {
+  try {
+    await helm.sessions.start({ cwd, prompt: sessionPrompt(item), name: item.id })
+  } catch (error) {
+    const busy = /** @type {{ code?: string }} */ (error).code === 'busy'
+    toast(busy ? 'Helm is already asking about a session.' : `Could not start a session: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 

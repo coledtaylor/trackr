@@ -3,6 +3,8 @@
  * colours of the v2 board, and the one-line item row.
  */
 
+import { markSession } from './sessions.js'
+
 const SVG = 'http://www.w3.org/2000/svg'
 
 /**
@@ -259,25 +261,26 @@ export function priorityGlyph(mark, name) {
 }
 
 /**
- * The session on a task, as a chip.
+ * The session on a task, as a chip, muted once the session no longer runs.
  *
- * @param {{ name: string, activeAt: string | null }} session
+ * @param {{ id: string, name: string }} session
  * @param {string} lastActive how long ago it last wrote, for the tooltip
  */
 export function sessionChip(session, lastActive) {
-  return el('span', { class: 'work-chip work-chip-session', title: lastActive ? `${session.name}, last active ${lastActive}` : session.name }, [
-    lineIcon(ICONS.session, 10, 2.2),
-    el('span', { class: 'work-ellip', text: session.name })
-  ])
+  return markSession(
+    el('span', { class: 'work-chip work-chip-session' }, [lineIcon(ICONS.session, 10, 2.2), el('span', { class: 'work-ellip', text: session.name })]),
+    session,
+    lastActive
+  )
 }
 
 /**
  * The session on a task, as a small square: for cards with no room for a name.
  *
- * @param {{ name: string }} session
+ * @param {{ id: string, name: string }} session
  */
 export function sessionTile(session) {
-  return el('span', { class: 'work-session-tile', title: session.name }, [lineIcon(ICONS.session, 11, 2.2)])
+  return markSession(el('span', { class: 'work-session-tile' }, [lineIcon(ICONS.session, 11, 2.2)]), session, '')
 }
 
 /**

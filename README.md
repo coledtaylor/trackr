@@ -12,8 +12,8 @@ and edit the same work in Helm's sidebar and tabs.
 
 ## Requirements
 
-- Helm 2.2.0 or later, the first with tools for sessions. On an older Helm the
-  pages work but sessions get no tools.
+- Helm 2.3.0 or later, the first that starts a session from a task, opens a
+  link, lists its sessions and keeps a plugin's pages in one tab.
 - Windows is where it is built and tested, as Helm is.
 - Nothing else: the service runs on the Node inside Helm and uses its built-in
   SQLite. There are no runtime dependencies.
@@ -110,7 +110,11 @@ Item       TC-123, kind epic | task, project, epic (tasks only), title,
 The rail icon opens the **Trackr** panel. Its badge is the number of tasks in an
 active status, across every portfolio.
 
-- **Doing now** lists those tasks, with the session on each.
+A portfolio, its workflow, a project or an item opens as a page in one Trackr
+tab, with its own strip of pages, so they do not crowd the sessions' tabs.
+
+- **Doing now** lists those tasks, with the session on each, dimmed once that
+  session is no longer running.
 - **Portfolios** lists each portfolio with its projects and their open task
   counts. The chevron folds a portfolio; the fold is remembered. **+** beside
   the heading makes a new portfolio: a name, a key (suggested from the name)
@@ -124,7 +128,7 @@ active status, across every portfolio.
   screen; Ctrl Enter creates the task and opens it. A toggle makes it an epic
   instead, with a home project.
 
-Rows open a tab:
+Rows open a page:
 
 - **A portfolio** shows a card per project, four stat cards (open tasks over 14
   days, in progress, waiting on another task, done this week), every epic with
@@ -148,10 +152,13 @@ Rows open a tab:
   project, the order they can be done in (each task hangs from the task it
   waits on), and its links. "Add a task" puts one in any project.
 - **A task** shows its description, acceptance criteria, where it stands and
-  the log, with its fields, dependencies and links beside them. Helm cannot
-  start a session for a plugin yet, so the session button copies the prompt
-  (`work on TC-123`) and says which folder to paste it in. Links are copied
-  when pressed: a plugin cannot open them either.
+  the log, with its fields, dependencies and links beside them. **Start a
+  session** asks Helm to open Claude Code in the project's first folder with
+  `work on TC-123`; Helm shows what it will run and you start it or not. A
+  project with no folder has nowhere to start one. The session chip says what
+  the session is doing (working, idle, waiting for you) or that it is not
+  running. An `https` link opens in Helm's Browser tab when pressed, with a
+  button to copy it; a branch, commit or file is copied.
 
 Everything on an epic or task page is edited in place: the title and
 description, status, priority, project and epic, criteria, where it stands,
@@ -224,10 +231,9 @@ preceded by one tool search. A plugin cannot change that.
 
 ## What Helm does not give a plugin yet
 
-A session cannot be started from a task, a link cannot be opened, a folder
-cannot be picked, a tab cannot close itself, read-only tools still ask, and
-the theme has no categorical colours. What the plugin does instead is described
-above, next to each feature.
+A folder cannot be picked, a tab cannot close itself, read-only tools still
+ask, and the theme has no categorical colours. What the plugin does instead is
+described above, next to each feature.
 
 ## Where the data lives
 

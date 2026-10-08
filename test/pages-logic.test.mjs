@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { age, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, linkText, listOrder, moved, openCount, paragraphs, priorityMark, replacementStatus, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
+import { age, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, linkText, listOrder, liveState, moved, openCount, openableAddress, paragraphs, priorityMark, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
 
 describe('timeLabel', () => {
   const now = new Date(2026, 9, 7, 16, 30)
@@ -264,5 +264,66 @@ describe('replacementStatus', () => {
 
   it('falls back to the default when the group has no other', () => {
     assert.equal(replacementStatus(statuses, 3)?.uid, 1)
+  })
+})
+
+describe('liveState', () => {
+  /** @param {string} id @param {'running' | 'ended'} state @param {any} [activity] */
+  const listed = (id, state, activity = null) => ({ id, state, activity })
+
+  it('is null when Helm could not list its sessions', () => {
+    assert.equal(liveState('a', null), null)
+  })
+
+  it('is running, with what it is doing, while the session runs', () => {
+    assert.deepEqual(liveState('a', [listed('a', 'running', 'busy')]), { running: true, activity: 'busy' })
+  })
+
+  it('is not running once it ended, or when Helm does not list it', () => {
+    assert.deepEqual(liveState('a', [listed('a', 'ended')]), { running: false })
+    assert.deepEqual(liveState('a', [listed('b', 'running', 'idle')]), { running: false })
+    assert.deepEqual(liveState('a', []), { running: false })
+  })
+
+  it('takes the latest entry for an id', () => {
+    assert.deepEqual(liveState('a', [listed('a', 'ended'), listed('a', 'running', 'waiting')]), { running: true, activity: 'waiting' })
+  })
+})
+
+describe('sessionPhrase', () => {
+  it('says what a running session is doing', () => {
+    assert.equal(sessionPhrase({ running: true, activity: 'busy' }, '14:12'), 'working')
+    assert.equal(sessionPhrase({ running: true, activity: 'waiting' }, ''), 'waiting for you')
+    assert.equal(sessionPhrase({ running: true, activity: null }, ''), 'running')
+  })
+
+  it('says one that stopped is not running', () => {
+    assert.equal(sessionPhrase({ running: false }, '14:12'), 'not running')
+  })
+
+  it('falls back to when it last wrote when Helm could not say', () => {
+    assert.equal(sessionPhrase(null, '14:12'), 'last active 14:12')
+    assert.equal(sessionPhrase(null, ''), '')
+  })
+})
+
+describe('sessionFolder', () => {
+  it('is the first folder, or null', () => {
+    assert.equal(sessionFolder({ folders: ['C:\work\api', 'C:\work\web'] }), 'C:\work\api')
+    assert.equal(sessionFolder({ folders: [] }), null)
+  })
+})
+
+describe('openableAddress', () => {
+  it('takes an https address', () => {
+    assert.equal(openableAddress(' https://github.com/coledtaylor/trackr/pull/3 '), 'https://github.com/coledtaylor/trackr/pull/3')
+  })
+
+  it('refuses what helm.open would', () => {
+    assert.equal(openableAddress('http://example.com'), null)
+    assert.equal(openableAddress('feat/x'), null)
+    assert.equal(openableAddress('https://user:pass@example.com'), null)
+    assert.equal(openableAddress(`https://example.com/${'a'.repeat(2048)}`), null)
+    assert.equal(openableAddress('https://'), null)
   })
 })
