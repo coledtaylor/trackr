@@ -260,7 +260,6 @@ export const LINK_KINDS = /** @type {const} */ ([
   ['pr', 'Pull request'],
   ['commit', 'Commit'],
   ['file', 'File'],
-  ['artifact', 'Artifact'],
   ['url', 'Link']
 ])
 
@@ -274,23 +273,121 @@ export const LINK_KINDS = /** @type {const} */ ([
 export function linkText(link) {
   const kind = LINK_KINDS.find(([key]) => key === link.kind)?.[1] ?? link.kind
   if (link.label) return { text: link.label, meta: `${kind} · ${link.value}`, mono: false }
-  return { text: link.value, meta: kind, mono: link.kind !== 'url' && link.kind !== 'artifact' }
+  return { text: link.value, meta: kind, mono: link.kind !== 'url' }
+}
+
+/** What each kind of reference is called, in the order the form offers them. */
+export const REF_KINDS = /** @type {const} */ ([
+  ['artifact', 'Artifact'],
+  ['doc', 'Doc'],
+  ['file', 'File'],
+  ['url', 'Link']
+])
+
+/**
+ * Whether a reference's title says no more than its target: the same text,
+ * or for a file the path inside its project folder it was stored as, which a
+ * file added without a title gets.
+ *
+ * @param {{ kind: string, target: string, title: string }} reference
+ */
+export function refTitleIsTarget(reference) {
+  if (reference.title === reference.target) return true
+  if (reference.kind !== 'file' || /^(?:[A-Za-z]:)?[\\/]/.test(reference.title)) return false
+  const slashed = (/** @type {string} */ path) => path.replace(/\\/g, '/')
+  return slashed(reference.target).endsWith(`/${slashed(reference.title)}`)
 }
 
 /**
- * How an artifact reads in its own card, where the kind goes without saying:
- * its label over its address, or the address alone. One that comes from the
- * item's epic says so.
+ * How a reference's name reads: its title, or when it has none of its own a
+ * web address without its scheme and a file's path in monospace.
  *
- * @param {{ value: string, label: string }} link
- * @param {string | null} epic the epic's ID when it is the epic's artifact
- * @returns {{ text: string, meta: string, mono: boolean }}
+ * @param {{ kind: string, target: string, title: string }} reference
+ * @returns {{ text: string, mono: boolean }}
  */
-export function artifactText(link, epic) {
-  const address = link.value.replace(/^https:\/\//i, '')
-  const from = epic ? `From epic ${epic}` : ''
-  if (link.label) return { text: link.label, meta: [from, address].filter(Boolean).join(' · '), mono: false }
-  return { text: address, meta: from, mono: false }
+export function refName(reference) {
+  if (!refTitleIsTarget(reference)) return { text: reference.title, mono: false }
+  if (reference.kind === 'file') return { text: reference.title, mono: true }
+  return { text: reference.target.replace(/^https?:\/\//i, ''), mono: false }
+}
+
+/**
+ * What pressing a reference does: open its address in the Browser tab, open
+ * a file with the program the computer opens it with, or copy what neither
+ * takes (a plain http address, a file that is not there).
+ *
+ * @param {{ kind: string, target: string }} reference
+ * @param {boolean} missing a file that is no longer there
+ * @returns {{ via: 'browser' | 'system' | 'copy', target: string }}
+ */
+export function refAction(reference, missing) {
+  if (reference.kind === 'file') return { via: missing ? 'copy' : 'system', target: reference.target }
+  const address = openableAddress(reference.target)
+  return address === null ? { via: 'copy', target: reference.target } : { via: 'browser', target: address }
+}
+
+/** @typedef {'windows' | 'mac' | 'linux'} Platform */
+
+/**
+ * The computer the page runs on, from the browser's user agent.
+ *
+ * @param {string} userAgent
+ * @returns {Platform}
+ */
+export function platformOf(userAgent) {
+  if (/Windows/i.test(userAgent)) return 'windows'
+  if (/Mac OS X|Macintosh/i.test(userAgent)) return 'mac'
+  return 'linux'
+}
+
+/**
+ * Files that run rather than open: programs, scripts, installers and
+ * shortcuts. A reference can be written by an agent, so pressing one of these
+ * shows it in its folder instead of running it.
+ */
+const RUNNABLE = new Set([
+  'app', 'appimage', 'bash', 'bat', 'bin', 'cmd', 'com', 'command', 'cpl', 'desktop', 'exe', 'hta', 'jar', 'js', 'jse',
+  'lnk', 'msi', 'msp', 'pif', 'ps1', 'psm1', 'py', 'pyw', 'reg', 'run', 'scr', 'sh', 'tool', 'url', 'vbe', 'vbs', 'wsf', 'wsh', 'zsh'
+])
+
+/**
+ * The program (a key of the manifest's `exec`) and arguments that open a file
+ * the way the computer opens it, or for a file that would run, show it in its
+ * folder. No shell is involved: the path is one argument.
+ *
+ * @param {string} path absolute, as the service gives it
+ * @param {Platform} platform
+ * @returns {{ program: 'explorer' | 'open' | 'xdg-open', args: string[], reveals: boolean }}
+ */
+export function fileOpener(path, platform) {
+  const name = path.split(/[\\/]/).pop() ?? ''
+  const dot = name.lastIndexOf('.')
+  const reveals = dot > 0 && RUNNABLE.has(name.slice(dot + 1).toLowerCase())
+  // Explorer takes the path after "/select," as its own argument: quoted
+  // together with it, a path with a space opens Documents instead.
+  if (platform === 'windows') return { program: 'explorer', args: reveals ? ['/select,', path] : [path], reveals }
+  if (platform === 'mac') return { program: 'open', args: reveals ? ['-R', path] : [path], reveals }
+  return { program: 'xdg-open', args: [reveals ? path.slice(0, Math.max(path.lastIndexOf('/'), 1)) : path], reveals }
+}
+
+/**
+ * Inherited references by where they come from, in the order given (nearest
+ * first), each source once.
+ *
+ * @template {{ from: { level: string, uid: number } }} R
+ * @param {R[]} inherited
+ * @returns {{ from: R['from'], refs: R[] }[]}
+ */
+export function refSources(inherited) {
+  /** @type {Map<string, { from: R['from'], refs: R[] }>} */
+  const sources = new Map()
+  for (const reference of inherited) {
+    const key = `${reference.from.level} ${reference.from.uid}`
+    const source = sources.get(key) ?? { from: reference.from, refs: /** @type {R[]} */ ([]) }
+    source.refs.push(reference)
+    sources.set(key, source)
+  }
+  return [...sources.values()]
 }
 
 /**

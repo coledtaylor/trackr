@@ -579,6 +579,12 @@
   color: var(--helm-fg);
 }
 
+/* References */
+
+.pf-body > .it-refs .it-link-form {
+  max-width: 520px;
+}
+
 /* Narrow panes */
 
 @container (max-width: 760px) {

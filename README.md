@@ -62,7 +62,7 @@ helm-plugin.json     the manifest
 service/main.mjs     the service Helm runs: owns the database, answers the pages over loopback
 service/store.mjs    the store: every read and write of the model
 service/schema.mjs   the schema, as migrations
-service/model.mjs    status groups, colours, icons, link kinds, defaults
+service/model.mjs    status groups, colours, icons, link and reference kinds, defaults
 service/folders.mjs  how a working directory picks its project
 service/rpc.mjs      the store methods the pages may call, and the tool route
 service/tools.mjs    find, get, create and update: what a session calls
@@ -86,10 +86,11 @@ Portfolio  key (TC), name, description, next number,
 Project    portfolio, name, colour, folders []
 Item       TC-123, kind epic | task, project, epic (tasks only), title,
            description, status, priority, position, waitsOn [ids],
-           links [{kind, value, label}] (artifacts are links of kind artifact),
-           criteria [{text, done}],
+           links [{kind, value, label}], criteria [{text, done}],
            handoff {done, left, next, by, at}, log [{at, by, text, ref}],
            session {id, name, activeAt}
+Reference  owner (a portfolio, project or item),
+           kind artifact | doc | file | url, target, title, use, key
 ```
 
 - Epics and tasks share one number sequence per portfolio. The ID is the
@@ -105,6 +106,14 @@ Item       TC-123, kind epic | task, project, epic (tasks only), title,
 - Claiming a task for a session never refuses: it returns the session that
   had it.
 - Marking a task done with criteria unchecked is allowed.
+- Links are what the work produced: a branch, a PR, a commit, a file.
+  References are what it follows: designs, mockups, specs and docs. A
+  reference is where something is and a `use` line saying when to read it;
+  Trackr never keeps its content. A key reference shows on everything under
+  its owner: a portfolio's on its projects, epics and tasks, an epic's on its
+  tasks. A file inside one of its project's folders is stored relative to
+  that folder, so it still resolves when the folders change or the item moves
+  to another project.
 
 ## In Helm
 
@@ -151,24 +160,26 @@ Rows open a page:
   workflow page.
 - **An epic** shows its progress in each project, its tasks in a box per
   project, the order they can be done in (each task hangs from the task it
-  waits on), and its artifacts and links. "Add a task" puts one in any project.
+  waits on), and its references and links. "Add a task" puts one in any project.
 - **A task** shows its description, acceptance criteria, where it stands and
-  the log, with its fields, dependencies, artifacts and links beside them.
+  the log, with its fields, dependencies, references and links beside them.
   **Start a session** asks Helm to open Claude Code in the project's first
   folder with `work on TC-123`; Helm shows what it will run and you start it
   or not. A project with no folder has nowhere to start one. The session chip says what
   the session is doing (working, idle, waiting for you) or that it is not
   running. An `https` link opens in Helm's Browser tab when pressed, with a
   button to copy it; a branch, commit or file is copied.
-- **Artifacts** are claude.ai artifacts the work follows: UI mockups, design
-  documents. They have their own card and their own section in `get`, which
-  tells the agent to read them with its Artifact tool instead of the task
-  copying them into its description. A task also shows its epic's artifacts,
-  marked as the epic's. Only claude.ai artifact addresses are taken.
+- **References** have their own card, with an icon for each kind. A task
+  also shows the key references of its epic, project and portfolio, marked
+  with where they come from. A file that is no longer there is marked missing.
+  Pressing one opens an `https` address in the Browser tab and a file in the
+  program the computer opens it with (Explorer, `open` or `xdg-open`, the
+  plugin's only programs). A program or script is shown in its folder instead,
+  never run; a missing file or a plain `http` address is copied.
 
 Everything on an epic or task page is edited in place: the title and
 description, status, priority, project and epic, criteria, where it stands,
-dependencies (both ways), artifacts and links, and the session can be let go.
+dependencies (both ways), references and links, and the session can be let go.
 An edit is logged as "You", the way a session's update is logged with its
 name; checking off criteria is not logged. Moving a task out of an active status lets go of
 its session, as it does for a session's update.
@@ -202,7 +213,7 @@ Sessions Helm starts get four tools, as `mcp__helm-plugin-trackr__<name>`:
 
 ```
 find    one line per item, next up first; no arguments = open items in this folder's project
-get     everything about one or more IDs; an epic lists its tasks by project
+get     everything about one or more IDs, portfolio keys or project names; an epic lists its tasks by project
 create  portfolios, projects, epics and tasks in one call; epics and tasks name each other by temporary refs
 update  several items in one call; says what became ready
 ```
@@ -213,6 +224,24 @@ to the service (`POST /tool`), where `service/tools.mjs` does the work next to
 the database. Every agent write is logged with the session's name; setting an
 item to an active status records the session on it, and a second session is
 told who had it. There is no delete tool: agents set an item to Cancelled.
+
+`create` and `update` take references on all four levels, each a `target`, a
+`use` line and a `title`. The kind comes from the target: a claude.ai artifact
+is `artifact`; Notion, Google Docs and the like are `doc`; other web addresses
+`url`; anything else a `file`, given absolute, as `~/...` or relative to the
+session's folder. A reference without a use line, or with a kind its target
+does not fit, is refused, and so is a claude.ai artifact given as a link.
+`update` adds, edits (`set`, found by target) and removes them; on a portfolio
+or project it takes only references.
+
+`get` lists them under References: the item's own, then the key references of
+its epic, project and portfolio, nearest first, each saying where it comes
+from. A target shows once, at the nearest level. Past ten inherited lines the
+rest collapse into one line per level, like `+4 more on project Desktop (get
+Desktop)`. A file that is gone is marked `missing`; one that cannot be checked
+is not marked. A last line names the tool for each kind shown: the Artifact
+tool, the doc's connector, Read or WebFetch. Content is never inlined, so a
+reference costs one line.
 
 The tools load into every session Helm starts, whatever its folder; a project
 needs nothing. Claude Code still asks before each call unless it is allowed.

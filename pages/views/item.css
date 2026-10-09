@@ -400,7 +400,8 @@ button.it-chip:hover {
   color: var(--helm-fg-subtle);
 }
 
-/* Remove buttons show on the row they belong to. */
+/* Remove buttons, and a reference's handle and pencil, show on the row they
+ * belong to. */
 .it-remove {
   opacity: 0;
 }
@@ -908,6 +909,98 @@ button.it-chip:hover {
   flex: none;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* References (references.js): link rows with a name line that carries the
+ * Key and Missing tags, and the line that says when to read it under it. The
+ * same rows sit in the portfolio's card and the project's group. */
+
+.it-ref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.it-ref-name {
+  height: 16px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.it-tag {
+  height: 15px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.it-tag.is-key {
+  background: var(--helm-accent-soft);
+  color: var(--helm-accent-text);
+}
+
+.it-tag.is-missing {
+  background: color-mix(in srgb, var(--helm-danger) 14%, transparent);
+  color: var(--helm-danger);
+}
+
+.it-link-icon.is-missing {
+  border-color: color-mix(in srgb, var(--helm-danger) 45%, transparent);
+  color: var(--helm-danger);
+}
+
+.it-ref .work-grip {
+  height: 24px;
+}
+
+.it-ref-list > .it-ref-form {
+  margin: 4px 0 6px;
+}
+
+.it-ref-form .it-select {
+  width: 100%;
+}
+
+/* A field with its name over it, as in the dialogs (work-dialog-field). */
+.it-ref-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.it-ref-field > span {
+  font-size: 11px;
+  color: var(--helm-fg-muted);
+}
+
+.it-ref-check {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.it-ref-check input {
+  margin: 0 2px 0 0;
+  accent-color: var(--helm-accent);
+}
+
+.it .it-ref-check .it-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .it-prompt {

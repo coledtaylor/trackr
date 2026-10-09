@@ -25,11 +25,16 @@
  * }} ItemSummary
  * @typedef {{ n: number, text: string, done: boolean }} Criterion
  * @typedef {{ uid: number, kind: string, value: string, label: string }} Link
+ * @typedef {'artifact' | 'doc' | 'file' | 'url'} RefKind
+ * @typedef {{ uid: number, kind: RefKind, target: string, title: string, use: string, key: boolean }} Reference
+ * @typedef {'epic' | 'project' | 'portfolio'} RefLevel
+ * @typedef {Reference & { from: { level: RefLevel, uid: number, name: string } }} InheritedReference
  * @typedef {{ at: string, by: string, text: string, ref: string | null }} LogEntry
  * @typedef {{ done: string, left: string, next: string, by: string, at: string }} Handoff
  * @typedef {ItemSummary & {
  *   description: string, createdAt: string, createdBy: string | null,
- *   criteriaList: Criterion[], links: Link[], epicArtifacts: Link[], waitsOn: ItemSummary[], blocks: ItemSummary[],
+ *   criteriaList: Criterion[], links: Link[], refs: Reference[],
+ *   waitsOn: ItemSummary[], blocks: ItemSummary[],
  *   handoff: Handoff | null, log: { entries: LogEntry[], total: number },
  *   tasks: ItemSummary[] | null, spans: string[] | null
  * }} Item
@@ -48,19 +53,25 @@
  *   },
  *   epics: EpicOverview[],
  *   active: ItemSummary[],
- *   waiting: { item: ItemSummary, waitsOn: Blocker[] }[]
+ *   waiting: { item: ItemSummary, waitsOn: Blocker[] }[],
+ *   refs: Reference[],
+ *   missing: number[]
  * }} PortfolioOverview
  * @typedef {{
  *   project: PlacedProject,
  *   portfolio: { uid: number, key: string, name: string, nextNumber: number, statuses: Status[], priorities: Priority[] },
- *   items: ItemSummary[]
+ *   items: ItemSummary[],
+ *   refs: Reference[],
+ *   missing: number[]
  * }} ProjectOverview
  * @typedef {{
  *   item: Item,
  *   portfolio: { uid: number, key: string, name: string, statuses: Status[], priorities: Priority[] },
  *   projects: PlacedProject[],
  *   epics: ItemSummary[],
- *   order: { uid: number, depth: number }[] | null
+ *   order: { uid: number, depth: number }[] | null,
+ *   inherited: InheritedReference[],
+ *   missing: number[]
  * }} ItemOverview
  * @typedef {{
  *   portfolio: Omit<Portfolio, 'projects'> & { projects: PlacedProject[] },

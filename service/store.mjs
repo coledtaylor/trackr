@@ -1,10 +1,10 @@
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname } from 'node:path'
+import { dirname, isAbsolute } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { SEP, changeParts, linkParts } from './changes.mjs'
+import { SEP, changeParts, linkParts, refParts } from './changes.mjs'
 import { conflict, invalid, notFound } from './errors.mjs'
-import { absoluteFolder, folderHolds, normalFolder } from './folders.mjs'
+import { absoluteFolder, anchorPath, folderHolds, normalFolder, pathState, resolvePath } from './folders.mjs'
 import {
   COLOURS,
   DEFAULT_ICON_FOR_GROUP,
@@ -16,12 +16,15 @@ import {
   LINK_KINDS,
   OPEN_GROUPS,
   isArtifactAddress,
+  isWebAddress,
   PORTFOLIO_KEY,
   PROJECT_COLOURS,
+  REF_KINDS,
   STATUS_GROUPS,
-  STATUS_ICONS
+  STATUS_ICONS,
+  inferRefKind
 } from './model.mjs'
-import { orderOf, placed, portfolioOverview } from './overview.mjs'
+import { missingFiles, orderOf, placed, portfolioOverview, unshadowed } from './overview.mjs'
 import { MIGRATIONS } from './schema.mjs'
 
 /**
@@ -47,11 +50,19 @@ import { MIGRATIONS } from './schema.mjs'
  * }} ItemSummary
  * @typedef {{ n: number, text: string, done: boolean }} Criterion
  * @typedef {{ uid: number, kind: string, value: string, label: string }} Link
+ * @typedef {'artifact' | 'doc' | 'file' | 'url'} RefKind
+ * @typedef {{ uid: number, kind: RefKind, target: string, title: string, use: string, key: boolean }} Reference
+ * @typedef {Reference & { from: { level: 'epic' | 'project' | 'portfolio', uid: number, name: string } }} InheritedReference
+ * @typedef {{ kind?: string, target: string, title?: string, use?: string, key?: boolean }} RefInput
+ * @typedef {{ kind?: string, target?: string, title?: string, use?: string, key?: boolean }} RefPatch
+ * @typedef {import('./folders.mjs').PathState} PathState
+ * @typedef {{ item: Ref } | { project: Ref, portfolio?: Ref } | { portfolio: Ref }} RefOwner
  * @typedef {{ at: string, by: string, text: string, ref: string | null }} LogEntry
  * @typedef {{ done: string, left: string, next: string, by: string, at: string }} Handoff
  * @typedef {ItemSummary & {
  *   description: string, createdAt: string, createdBy: string | null,
- *   criteriaList: Criterion[], links: Link[], epicArtifacts: Link[], waitsOn: ItemSummary[], blocks: ItemSummary[],
+ *   criteriaList: Criterion[], links: Link[], refs: Reference[],
+ *   waitsOn: ItemSummary[], blocks: ItemSummary[],
  *   handoff: Handoff | null, log: { entries: LogEntry[], total: number },
  *   tasks: ItemSummary[] | null, spans: string[] | null
  * }} Item
@@ -96,6 +107,15 @@ const READY = `NOT EXISTS (
     JOIN items w ON w.id = d.waits_on_id
     JOIN statuses ws ON ws.id = w.status_id
    WHERE d.item_id = i.id AND ws.grp IN ('not-started', 'active'))`
+
+/**
+ * Columns every reference reads. `anchor` is the project whose folders a
+ * relative file is under: the owner, or the owning item's project.
+ */
+const REF_SELECT = `
+  SELECT r.id, r.kind, r.target, r.title, r.use, r.key, r.position, coalesce(r.project_id, i.project_id) AS anchor
+    FROM refs r
+    LEFT JOIN items i ON i.id = r.item_id`
 
 /**
  * The work store: portfolios, projects, epics and tasks in one SQLite file.
@@ -220,16 +240,14 @@ export class WorkStore {
   }
 
   /**
-   * An item's links, or only its artifacts, in their order.
+   * An item's links, in their order.
    *
    * @private
    * @param {number} itemId
-   * @param {{ artifacts?: boolean }} [options]
    * @returns {Link[]}
    */
-  linkRows(itemId, options = {}) {
-    const kind = options.artifacts ? "AND kind = 'artifact'" : ''
-    return this.rows(`SELECT id, kind, value, label FROM links WHERE item_id = ? ${kind} ORDER BY position`, itemId).map((link) => ({
+  linkRows(itemId) {
+    return this.rows('SELECT id, kind, value, label FROM links WHERE item_id = ? ORDER BY position', itemId).map((link) => ({
       uid: link.id,
       kind: link.kind,
       value: link.value,
@@ -821,6 +839,9 @@ export class WorkStore {
       if (absolute === null) throw invalid(`${folder} is not an absolute path.`)
       byNorm.set(normalFolder(absolute), absolute)
     }
+    // Files stored relative to the old folders are read against them first,
+    // then stored against the new ones.
+    const files = this.filePaths('r.project_id = ?1 OR r.item_id IN (SELECT id FROM items WHERE project_id = ?1)', projectId)
     this.run('DELETE FROM project_folders WHERE project_id = ?', projectId)
     let position = 0
     for (const [norm, path] of byNorm) {
@@ -832,6 +853,18 @@ export class WorkStore {
       if (owner) throw conflict(`${path} already belongs to ${owner.p_name}/${owner.name}.`)
       this.run('INSERT INTO project_folders (project_id, path, norm, position) VALUES (?, ?, ?, ?)', projectId, path, norm, ++position)
     }
+    this.storeFiles(files, [...byNorm.values()])
+  }
+
+  /**
+   * A project's folders, in its order.
+   *
+   * @private
+   * @param {number} projectId
+   * @returns {string[]}
+   */
+  foldersOf(projectId) {
+    return this.rows('SELECT path FROM project_folders WHERE project_id = ? ORDER BY position', projectId).map((row) => row.path)
   }
 
   /**
@@ -918,7 +951,7 @@ export class WorkStore {
    *
    * @param {{ kind?: 'epic' | 'task', project: Ref, portfolio?: Ref, epic?: Ref | null, title: string,
    *   description?: string, status?: Ref, priority?: Ref, criteria?: string[],
-   *   links?: { kind: string, value: string, label?: string }[], waitsOn?: Ref[], by?: string }} input
+   *   links?: { kind: string, value: string, label?: string }[], refs?: RefInput[], waitsOn?: Ref[], by?: string }} input
    * @returns {Item}
    */
   createItem(input) {
@@ -963,6 +996,7 @@ export class WorkStore {
       )
       if (input.criteria !== undefined) this.addCriteria(uid, input.criteria)
       for (const link of input.links ?? []) this.addLink(uid, link)
+      for (const ref of input.refs ?? []) this.addRef({ item: uid }, ref)
       for (const waitsOn of input.waitsOn ?? []) this.addDependency(uid, waitsOn)
       return this.getItem(uid)
     })
@@ -971,8 +1005,7 @@ export class WorkStore {
   /**
    * Everything about one item. A task's log is its latest `logLimit` entries,
    * oldest first; an epic also lists its tasks and the projects they are in.
-   * A task in an epic carries the epic's artifacts too (`epicArtifacts`): a
-   * design document usually covers the whole epic.
+   * `refs` are its own references; what it inherits is `inheritedRefs`.
    *
    * @param {Ref} ref
    * @param {{ logLimit?: number }} [options]
@@ -986,7 +1019,7 @@ export class WorkStore {
       (criterion, index) => ({ n: index + 1, text: criterion.text, done: criterion.done === 1 })
     )
     const links = this.linkRows(row.id)
-    const epicArtifacts = row.epic_id === null ? [] : this.linkRows(row.epic_id, { artifacts: true })
+    const refs = this.listRefs({ item: row.id })
     const total = Number(this.row('SELECT count(*) AS n FROM log WHERE item_id = ?', row.id).n)
     const entries = this.rows('SELECT at, by, text, ref FROM log WHERE item_id = ? ORDER BY id DESC LIMIT ?', row.id, logLimit)
       .reverse()
@@ -999,7 +1032,7 @@ export class WorkStore {
       createdBy: row.created_by,
       criteriaList,
       links,
-      epicArtifacts,
+      refs,
       waitsOn: this.summaries(`WHERE i.id IN (SELECT waits_on_id FROM dependencies WHERE item_id = ?) ${NEXT_UP_ORDER}`, [row.id]),
       blocks: this.summaries(`WHERE i.id IN (SELECT item_id FROM dependencies WHERE waits_on_id = ?) ${NEXT_UP_ORDER}`, [row.id]),
       handoff:
@@ -1078,6 +1111,9 @@ export class WorkStore {
         if (typeof patch.position !== 'number' || !Number.isFinite(patch.position)) throw invalid('position must be a number.')
         set.position = patch.position
       }
+      // An item's files stored relative to its project's folders move to the
+      // new project's.
+      const files = set.project_id === undefined ? null : this.filePaths('r.item_id = ?', row.id)
       const columns = Object.keys(set)
       if (columns.length > 0) {
         this.run(
@@ -1087,12 +1123,13 @@ export class WorkStore {
           row.id
         )
       }
+      if (files !== null) this.storeFiles(files, this.foldersOf(/** @type {number} */ (set.project_id)))
       return { item: this.summaries('WHERE i.id = ?', [row.id])[0], changes }
     })
   }
 
   /**
-   * Deletes an item, its criteria, links, log and dependencies. An epic's
+   * Deletes an item, its criteria, links, references, log and dependencies. An epic's
    * tasks stay, without an epic. The UI asks first; agents cancel instead.
    *
    * @param {Ref} ref
@@ -1183,7 +1220,7 @@ export class WorkStore {
    * waiting on another task.
    *
    * @param {Ref} ref key or uid
-   * @param {{ home?: string }} [options]
+   * @param {{ home?: string, pathState?: (path: string) => PathState }} [options]
    */
   portfolioOverview(ref, options = {}) {
     const portfolio = this.getPortfolio(ref)
@@ -1193,20 +1230,26 @@ export class WorkStore {
         WHERE i.portfolio_id = ? AND i.kind = 'task' ORDER BY h.item_id, h.at, h.id`,
       portfolio.uid
     )
-    return portfolioOverview(portfolio, items, history, { now: this.now(), home: options.home ?? homedir() })
+    const refs = this.listRefs({ portfolio: portfolio.uid })
+    return {
+      ...portfolioOverview(portfolio, items, history, { now: this.now(), home: options.home ?? homedir() }),
+      refs,
+      missing: missingFiles(refs, options.pathState ?? pathState)
+    }
   }
 
   /**
    * Everything the project view shows: the project, its portfolio's statuses
-   * and priorities, and every item in it, next up first.
+   * and priorities, every item in it, next up first, and its references.
    *
    * @param {Ref} ref uid, or a name with `portfolio`
    * @param {Ref} [portfolio]
-   * @param {{ home?: string }} [options]
+   * @param {{ home?: string, pathState?: (path: string) => PathState }} [options]
    */
   projectOverview(ref, portfolio, options = {}) {
     const project = this.getProject(ref, portfolio)
     const owner = this.portfolioRow(project.portfolio.uid)
+    const refs = this.listRefs({ project: project.uid })
     return {
       project: placed(project, options.home ?? homedir()),
       portfolio: {
@@ -1217,17 +1260,21 @@ export class WorkStore {
         statuses: this.statusesOf(owner.id),
         priorities: this.prioritiesOf(owner.id)
       },
-      items: this.summaries(`WHERE i.project_id = ? ${NEXT_UP_ORDER}`, [project.uid])
+      items: this.summaries(`WHERE i.project_id = ? ${NEXT_UP_ORDER}`, [project.uid]),
+      refs,
+      missing: missingFiles(refs, options.pathState ?? pathState)
     }
   }
 
   /**
    * Everything the epic and task views show: the item with its log, what the
    * pickers offer (the portfolio's statuses, priorities, projects and open
-   * epics), and for an epic the order its tasks can be done in.
+   * epics), for an epic the order its tasks can be done in, the key
+   * references it inherits that its own do not name, and which of all its
+   * file references are gone (`missing`, by uid).
    *
    * @param {Ref} ref
-   * @param {{ home?: string, logLimit?: number }} [options]
+   * @param {{ home?: string, logLimit?: number, pathState?: (path: string) => PathState }} [options]
    */
   itemOverview(ref, options = {}) {
     const row = this.itemRow(ref)
@@ -1249,6 +1296,7 @@ export class WorkStore {
       ).map((edge) => ({ item: Number(edge.item), waitsOn: Number(edge.waitsOn) }))
       order = orderOf(tasks, edges)
     }
+    const inherited = unshadowed(item.refs, this.inheritedRefs(row.id))
     return {
       item,
       portfolio: {
@@ -1260,7 +1308,9 @@ export class WorkStore {
       },
       projects: this.listProjects(owner.id).map((project) => placed(project, home)),
       epics,
-      order
+      order,
+      inherited,
+      missing: missingFiles([...item.refs, ...inherited], options.pathState ?? pathState)
     }
   }
 
@@ -1293,7 +1343,7 @@ export class WorkStore {
   }
 
   /**
-   * An edit from the pages: fields, dependencies, links, where it stands and
+   * An edit from the pages: fields, dependencies, links, references, where it stands and
    * a note, in one transaction and one log line by `by`, the way a session's
    * update is logged. Moving an item out of an active status lets go of its
    * session. Criteria have their own methods and are not logged: the list
@@ -1303,6 +1353,7 @@ export class WorkStore {
    * @param {{ title?: string, description?: string, status?: Ref, priority?: Ref, project?: Ref, epic?: Ref | null,
    *   waitsOn?: { add?: Ref[], remove?: Ref[] },
    *   links?: { add?: { kind: string, value: string, label?: string }[], remove?: number[] },
+   *   refs?: { add?: RefInput[], edit?: (RefPatch & { uid: number })[], remove?: number[] },
    *   handoff?: { done?: string, left?: string, next?: string },
    *   note?: string }} patch
    * @param {string} by who made it, as the log names them
@@ -1339,6 +1390,14 @@ export class WorkStore {
         return { kind }
       })
       parts.push(...linkParts(added, removed))
+      const refsAdded = (patch.refs?.add ?? []).map((input) => this.addRef({ item: row.id }, input))
+      const own = new Map(this.listRefs({ item: row.id }).map((reference) => [reference.uid, JSON.stringify(reference)]))
+      const refsEdited = (patch.refs?.edit ?? []).filter(
+        ({ uid, ...fields }) => JSON.stringify(this.updateRef({ item: row.id }, uid, fields)) !== own.get(uid)
+      )
+      const refsRemoved = patch.refs?.remove ?? []
+      for (const uid of refsRemoved) this.removeRef({ item: row.id }, uid)
+      parts.push(...refParts(refsAdded, refsRemoved, refsEdited))
       if (patch.handoff !== undefined) {
         this.setHandoff(row.id, patch.handoff, author)
         parts.push('handoff')
@@ -1529,9 +1588,6 @@ export class WorkStore {
       const kind = input?.kind
       if (!LINK_KINDS.includes(/** @type {any} */ (kind))) throw invalid(`A link's kind is one of ${LINK_KINDS.join(', ')}.`)
       const value = requiredText(input.value, 'link', LIMITS.linkValue)
-      if (kind === 'artifact' && !isArtifactAddress(value)) {
-        throw invalid(`${value} is not a claude.ai artifact. An artifact's address is like https://claude.ai/artifact/… or https://claude.ai/code/artifact/….`)
-      }
       const label = optionalText(input.label, 'label', LIMITS.title) ?? ''
       const existing = this.row('SELECT id FROM links WHERE item_id = ? AND kind = ? AND value = ?', row.id, kind, value)
       if (existing) {
@@ -1565,6 +1621,265 @@ export class WorkStore {
       if (Number(removed.changes) === 0) throw notFound(`${formatId(row.p_key, row.number)} has no link ${linkUid}.`)
       this.touch(row.id)
     })
+  }
+
+  // ---------------------------------------------------------------------------
+  // References: what the work follows, held by a portfolio, a project or an
+  // item. A key reference also shows on everything under its owner. A file
+  // inside one of its owner's project folders is stored relative to it and
+  // read back as an absolute path; a portfolio's files stay absolute.
+
+  /**
+   * @param {RefOwner} owner
+   * @returns {Reference[]} in their order
+   */
+  listRefs(owner) {
+    const holder = this.refOwner(owner)
+    return this.references(this.rows(`${REF_SELECT} WHERE r.${holder.column} = ? ORDER BY r.position`, holder.id))
+  }
+
+  /**
+   * Adds a reference. The same kind and target twice is one reference: the
+   * fields given replace its own. A new one needs `use`, the line that says
+   * when to read it; its title is the target when none is given. With no
+   * kind, the target says which it is (inferRefKind).
+   *
+   * @param {RefOwner} owner
+   * @param {RefInput} input
+   * @returns {Reference}
+   */
+  addRef(owner, input) {
+    return this.transaction(() => {
+      const holder = this.refOwner(owner)
+      const kind = input?.kind === undefined || input.kind === '' ? inferRefKind(String(input?.target ?? '')) : refKind(input.kind)
+      const target = refTarget(kind, input.target, holder.folders)
+      const title = optionalText(input.title, 'title', LIMITS.refTitle)
+      const use = input.use === undefined ? undefined : requiredText(input.use, 'use line', LIMITS.refUse)
+      if (input.key !== undefined && typeof input.key !== 'boolean') throw invalid('key must be true or false.')
+      const existing = this.row(`SELECT id FROM refs WHERE ${holder.column} = ? AND kind = ? AND target = ?`, holder.id, kind, target)
+      let uid
+      if (existing) {
+        uid = Number(existing.id)
+        if (title !== undefined) this.run('UPDATE refs SET title = ? WHERE id = ?', title || target, uid)
+        if (use !== undefined) this.run('UPDATE refs SET use = ? WHERE id = ?', use, uid)
+        if (input.key !== undefined) this.run('UPDATE refs SET key = ? WHERE id = ?', input.key ? 1 : 0, uid)
+      } else {
+        if (use === undefined) throw invalid('A reference needs a use line: when to read it, like "Read when changing the sync engine".')
+        const position = Number(this.row(`SELECT coalesce(max(position), 0) + 1 AS next FROM refs WHERE ${holder.column} = ?`, holder.id).next)
+        uid = Number(
+          this.run(
+            `INSERT INTO refs (${holder.column}, kind, target, title, use, key, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            holder.id,
+            kind,
+            target,
+            title || target,
+            use,
+            input.key ? 1 : 0,
+            position,
+            this.stamp()
+          ).lastInsertRowid
+        )
+      }
+      this.touchOwner(holder)
+      return this.references(this.rows(`${REF_SELECT} WHERE r.id = ?`, uid))[0]
+    })
+  }
+
+  /**
+   * Changes a reference where it is in its owner's order. A new target with
+   * no kind takes the kind it reads as; a title that only repeated the old
+   * target follows the new one. A target the owner already has in another
+   * reference is refused.
+   *
+   * @param {RefOwner} owner
+   * @param {number} uid
+   * @param {RefPatch} patch
+   * @returns {Reference}
+   */
+  updateRef(owner, uid, patch) {
+    return this.transaction(() => {
+      const holder = this.refOwner(owner)
+      const row = this.row(`SELECT kind, target, title, use, key FROM refs WHERE id = ? AND ${holder.column} = ?`, uid, holder.id)
+      if (!row) throw notFound(`${holder.name} has no reference ${uid}.`)
+      const current = this.references(this.rows(`${REF_SELECT} WHERE r.id = ?`, uid))[0]
+      const input = typeof patch === 'object' && patch !== null ? patch : {}
+      const retargeted = input.target !== undefined && String(input.target).trim() !== current.target
+      const kind =
+        input.kind !== undefined && input.kind !== '' ? refKind(input.kind) : retargeted ? inferRefKind(String(input.target)) : /** @type {RefKind} */ (row.kind)
+      const target = retargeted || kind !== row.kind ? refTarget(kind, retargeted ? input.target : current.target, holder.folders) : String(row.target)
+      const title = optionalText(input.title, 'title', LIMITS.refTitle)
+      const use = input.use === undefined ? String(row.use) : requiredText(input.use, 'use line', LIMITS.refUse)
+      if (input.key !== undefined && typeof input.key !== 'boolean') throw invalid('key must be true or false.')
+      const taken = this.row(`SELECT 1 FROM refs WHERE ${holder.column} = ? AND kind = ? AND target = ? AND id <> ?`, holder.id, kind, target, uid)
+      if (taken) throw conflict(`${holder.name} already has a reference to ${retargeted ? String(input.target).trim() : current.target}.`)
+      const followsTarget = title === undefined && row.title === row.target
+      this.run(
+        'UPDATE refs SET kind = ?, target = ?, title = ?, use = ?, key = ? WHERE id = ?',
+        kind,
+        target,
+        followsTarget ? target : title || (title === undefined ? String(row.title) : target),
+        use,
+        input.key === undefined ? Number(row.key) : input.key ? 1 : 0,
+        uid
+      )
+      this.touchOwner(holder)
+      return this.references(this.rows(`${REF_SELECT} WHERE r.id = ?`, uid))[0]
+    })
+  }
+
+  /**
+   * @param {RefOwner} owner
+   * @param {number} uid
+   */
+  removeRef(owner, uid) {
+    this.transaction(() => {
+      const holder = this.refOwner(owner)
+      const removed = this.run(`DELETE FROM refs WHERE id = ? AND ${holder.column} = ?`, uid, holder.id)
+      if (Number(removed.changes) === 0) throw notFound(`${holder.name} has no reference ${uid}.`)
+      this.touchOwner(holder)
+    })
+  }
+
+  /**
+   * @param {RefOwner} owner
+   * @param {number[]} order every reference of the owner, by uid, in the new order
+   * @returns {Reference[]}
+   */
+  reorderRefs(owner, order) {
+    return this.transaction(() => {
+      const holder = this.refOwner(owner)
+      const ids = new Set(this.rows(`SELECT id FROM refs WHERE ${holder.column} = ?`, holder.id).map((row) => Number(row.id)))
+      if (!Array.isArray(order) || order.length !== ids.size) {
+        throw invalid(`The new order must name each of the ${ids.size} references of ${holder.name} once.`)
+      }
+      const seen = new Set()
+      for (const uid of order) {
+        if (!ids.has(uid)) throw invalid(`${String(uid)} is not one of the references of ${holder.name}.`)
+        if (seen.has(uid)) throw invalid(`Reference ${uid} is named twice in the new order.`)
+        seen.add(uid)
+      }
+      order.forEach((uid, index) => this.run('UPDATE refs SET position = ? WHERE id = ?', index + 1, uid))
+      this.touchOwner(holder)
+      return this.listRefs(owner)
+    })
+  }
+
+  /**
+   * The key references an item inherits: its epic's, then its project's, then
+   * its portfolio's, each in its owner's order. An epic, and a task outside
+   * one, start at the project. `from` says whose each is; its name is the
+   * epic's ID, the project's name or the portfolio's key.
+   *
+   * @param {Ref} ref
+   * @returns {InheritedReference[]}
+   */
+  inheritedRefs(ref) {
+    const row = this.itemRow(ref)
+    const rows = this.rows(
+      `SELECT * FROM (
+         SELECT 0 AS level, * FROM (${REF_SELECT} WHERE r.item_id = ?1 AND r.key = 1)
+         UNION ALL SELECT 1, * FROM (${REF_SELECT} WHERE r.project_id = ?2 AND r.key = 1)
+         UNION ALL SELECT 2, * FROM (${REF_SELECT} WHERE r.portfolio_id = ?3 AND r.key = 1))
+        ORDER BY level, position`,
+      row.epic_id,
+      row.project_id,
+      row.portfolio_id
+    )
+    if (rows.length === 0) return []
+    const levels = /** @type {const} */ (['epic', 'project', 'portfolio'])
+    const sources = [
+      row.epic_id === null ? null : { level: levels[0], uid: Number(row.epic_id), name: this.idOf(Number(row.epic_id)) },
+      { level: levels[1], uid: Number(row.project_id), name: String(this.projectRow(Number(row.project_id)).name) },
+      { level: levels[2], uid: Number(row.portfolio_id), name: String(row.p_key) }
+    ]
+    return this.references(rows).map((reference, index) => ({ ...reference, from: sources[Number(rows[index].level)] ?? unreachable() }))
+  }
+
+  /**
+   * Whose references: the item, the project or the portfolio named, with the
+   * folders its files are stored against. A portfolio has none.
+   *
+   * @private
+   * @param {RefOwner} owner
+   * @returns {{ column: 'item_id' | 'project_id' | 'portfolio_id', id: number, name: string, folders: string[] }}
+   */
+  refOwner(owner) {
+    const named = /** @type {Record<string, unknown>} */ (typeof owner === 'object' && owner !== null ? owner : {})
+    if (named.item !== undefined) {
+      const row = this.itemRow(/** @type {Ref} */ (named.item))
+      return { column: 'item_id', id: Number(row.id), name: formatId(row.p_key, row.number), folders: this.foldersOf(row.project_id) }
+    }
+    if (named.project !== undefined) {
+      const row = this.projectRow(/** @type {Ref} */ (named.project), /** @type {Ref | undefined} */ (named.portfolio))
+      return { column: 'project_id', id: Number(row.id), name: String(row.name), folders: this.foldersOf(row.id) }
+    }
+    if (named.portfolio !== undefined) {
+      const row = this.portfolioRow(/** @type {Ref} */ (named.portfolio))
+      return { column: 'portfolio_id', id: Number(row.id), name: String(row.key), folders: [] }
+    }
+    throw invalid('Say whose references: an item, a project or a portfolio.')
+  }
+
+  /**
+   * @private
+   * @param {{ column: 'item_id' | 'project_id' | 'portfolio_id', id: number }} holder
+   */
+  touchOwner(holder) {
+    if (holder.column === 'item_id') this.touch(holder.id)
+    else this.run(`UPDATE ${holder.column === 'project_id' ? 'projects' : 'portfolios'} SET updated_at = ? WHERE id = ?`, this.stamp(), holder.id)
+  }
+
+  /**
+   * Reference rows as callers see them, a relative file back under the first
+   * of its project's folders it exists in.
+   *
+   * @private
+   * @param {any[]} rows read through REF_SELECT
+   * @returns {Reference[]}
+   */
+  references(rows) {
+    /** @type {Map<number, string[]>} */
+    const folders = new Map()
+    return rows.map((row) => {
+      let target = String(row.target)
+      if (row.kind === 'file' && row.anchor !== null && !isAbsolute(target)) {
+        const anchor = Number(row.anchor)
+        if (!folders.has(anchor)) folders.set(anchor, this.foldersOf(anchor))
+        target = resolvePath(target, folders.get(anchor) ?? [])
+      }
+      return { uid: Number(row.id), kind: row.kind, target, title: row.title, use: row.use, key: row.key === 1 }
+    })
+  }
+
+  /**
+   * The file references a condition matches, each as an absolute path read
+   * against the folders it is stored against now.
+   *
+   * @private
+   * @param {string} where a condition on `r`, the references
+   * @param {...any} params
+   * @returns {{ uid: number, path: string }[]}
+   */
+  filePaths(where, ...params) {
+    return this.references(this.rows(`${REF_SELECT} WHERE r.kind = 'file' AND (${where})`, ...params)).map((reference) => ({
+      uid: reference.uid,
+      path: reference.target
+    }))
+  }
+
+  /**
+   * Stores files read by `filePaths` against new folders. One that comes to
+   * equal another reference of its owner is that reference, and goes.
+   *
+   * @private
+   * @param {{ uid: number, path: string }[]} files
+   * @param {readonly string[]} folders
+   */
+  storeFiles(files, folders) {
+    for (const file of files) {
+      const updated = this.run('UPDATE OR IGNORE refs SET target = ? WHERE id = ?', anchorPath(file.path, folders), file.uid)
+      if (Number(updated.changes) === 0) this.run('DELETE FROM refs WHERE id = ?', file.uid)
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1816,6 +2131,41 @@ function colourOf(value) {
 function statusIcon(value) {
   if (!STATUS_ICONS.includes(/** @type {any} */ (value))) throw invalid(`A status icon is one of ${STATUS_ICONS.join(', ')}.`)
   return /** @type {string} */ (value)
+}
+
+/**
+ * @param {unknown} value
+ * @returns {RefKind}
+ */
+function refKind(value) {
+  if (!REF_KINDS.includes(/** @type {any} */ (value))) throw invalid(`A reference's kind is one of ${REF_KINDS.join(', ')}.`)
+  return /** @type {RefKind} */ (value)
+}
+
+/**
+ * A reference's target as it is stored: an artifact's claude.ai address, a
+ * doc's or url's web address, a file's absolute path, relative to the
+ * deepest of `folders` that holds it.
+ *
+ * @param {RefKind} kind
+ * @param {unknown} value
+ * @param {readonly string[]} folders
+ */
+function refTarget(kind, value, folders) {
+  const target = requiredText(value, 'target', LIMITS.linkValue)
+  if (kind === 'artifact') {
+    if (!isArtifactAddress(target)) {
+      throw invalid(`${target} is not a claude.ai artifact. An artifact's address is like https://claude.ai/artifact/… or https://claude.ai/code/artifact/….`)
+    }
+    return target
+  }
+  if (kind === 'file') {
+    const absolute = absoluteFolder(target)
+    if (absolute === null) throw invalid(`${target} is not an absolute path. A file reference names the file in full.`)
+    return anchorPath(absolute, folders)
+  }
+  if (!isWebAddress(target)) throw invalid(`${target} is not a web address. A ${kind} reference starts with https:// or http://.`)
+  return target
 }
 
 /**

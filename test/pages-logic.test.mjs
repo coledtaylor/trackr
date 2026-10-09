@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { age, artifactText, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, linkText, listOrder, liveState, moved, openCount, openableAddress, paragraphs, priorityMark, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
+import { age, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, fileOpener, linkText, listOrder, liveState, moved, openCount, openableAddress, paragraphs, platformOf, priorityMark, refAction, refName, refSources, refTitleIsTarget, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
 
 describe('timeLabel', () => {
   const now = new Date(2026, 9, 7, 16, 30)
@@ -203,13 +203,73 @@ describe('linkText', () => {
   })
 })
 
-describe('artifactText', () => {
-  it('shows a label over the address, else the address, and an epic artifact says so', () => {
-    const value = 'https://claude.ai/artifact/abc'
-    assert.deepEqual(artifactText({ value, label: 'Settings mockup' }, null), { text: 'Settings mockup', meta: 'claude.ai/artifact/abc', mono: false })
-    assert.deepEqual(artifactText({ value, label: '' }, null), { text: 'claude.ai/artifact/abc', meta: '', mono: false })
-    assert.deepEqual(artifactText({ value, label: 'Design' }, 'TC-1'), { text: 'Design', meta: 'From epic TC-1 · claude.ai/artifact/abc', mono: false })
-    assert.deepEqual(artifactText({ value, label: '' }, 'TC-1'), { text: 'claude.ai/artifact/abc', meta: 'From epic TC-1', mono: false })
+describe('refName', () => {
+  it("shows the title, else the address without its scheme or the file's path", () => {
+    assert.deepEqual(refName({ kind: 'artifact', target: 'https://claude.ai/artifact/abc', title: 'Mockup' }), { text: 'Mockup', mono: false })
+    assert.deepEqual(refName({ kind: 'url', target: 'https://x.dev/a', title: 'https://x.dev/a' }), { text: 'x.dev/a', mono: false })
+    assert.deepEqual(refName({ kind: 'file', target: 'C:\\code\\docs\\a.md', title: 'docs/a.md' }), { text: 'docs/a.md', mono: true })
+    assert.deepEqual(refName({ kind: 'file', target: '/code/docs/a.md', title: '/code/docs/a.md' }), { text: '/code/docs/a.md', mono: true })
+    assert.deepEqual(refName({ kind: 'file', target: '/code/docs/a.md', title: 'a.md notes' }), { text: 'a.md notes', mono: false })
+    assert.equal(refTitleIsTarget({ kind: 'file', target: '/code/docs/a.md', title: 'docs/a.md' }), true)
+    assert.equal(refTitleIsTarget({ kind: 'file', target: '/code/docs/a.md', title: '/other/docs/a.md' }), false)
+  })
+})
+
+describe('refAction', () => {
+  it('opens an https address in the browser and a file with the system, and copies the rest', () => {
+    assert.deepEqual(refAction({ kind: 'artifact', target: 'https://claude.ai/artifact/abc' }, false), { via: 'browser', target: 'https://claude.ai/artifact/abc' })
+    assert.deepEqual(refAction({ kind: 'doc', target: 'https://www.notion.so/x' }, false), { via: 'browser', target: 'https://www.notion.so/x' })
+    assert.deepEqual(refAction({ kind: 'url', target: 'http://intranet/wiki' }, false), { via: 'copy', target: 'http://intranet/wiki' })
+    assert.deepEqual(refAction({ kind: 'file', target: 'C:\\code\\docs\\a.md' }, false), { via: 'system', target: 'C:\\code\\docs\\a.md' })
+  })
+
+  it('copies a file that is gone', () => {
+    assert.deepEqual(refAction({ kind: 'file', target: 'C:\\code\\docs\\a.md' }, true), { via: 'copy', target: 'C:\\code\\docs\\a.md' })
+  })
+})
+
+describe('platformOf', () => {
+  it('reads the platform from the user agent', () => {
+    assert.equal(platformOf('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Electron/38.0.0'), 'windows')
+    assert.equal(platformOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'), 'mac')
+    assert.equal(platformOf('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'), 'linux')
+  })
+})
+
+describe('fileOpener', () => {
+  it('opens a document with the system on each platform', () => {
+    assert.deepEqual(fileOpener('C:\\code\\docs\\design.md', 'windows'), { program: 'explorer', args: ['C:\\code\\docs\\design.md'], reveals: false })
+    assert.deepEqual(fileOpener('/code/docs/design.md', 'mac'), { program: 'open', args: ['/code/docs/design.md'], reveals: false })
+    assert.deepEqual(fileOpener('/code/docs/design.md', 'linux'), { program: 'xdg-open', args: ['/code/docs/design.md'], reveals: false })
+  })
+
+  it('shows a program or script in its folder instead of running it', () => {
+    assert.deepEqual(fileOpener('C:\\tools\\Setup.EXE', 'windows'), { program: 'explorer', args: ['/select,', 'C:\\tools\\Setup.EXE'], reveals: true })
+    assert.deepEqual(fileOpener('/code/build.sh', 'mac'), { program: 'open', args: ['-R', '/code/build.sh'], reveals: true })
+    assert.deepEqual(fileOpener('/code/build.sh', 'linux'), { program: 'xdg-open', args: ['/code'], reveals: true })
+    assert.deepEqual(fileOpener('/run.sh', 'linux'), { program: 'xdg-open', args: ['/'], reveals: true })
+  })
+
+  it('opens a folder or a file with no extension, and a dotfile', () => {
+    assert.equal(fileOpener('C:\\code\\docs', 'windows').reveals, false)
+    assert.equal(fileOpener('/code/.sh', 'linux').reveals, false)
+  })
+})
+
+describe('refSources', () => {
+  it('groups inherited references by where they come from, nearest first', () => {
+    const epic = { level: 'epic', uid: 7, name: 'TC-7' }
+    const project = { level: 'project', uid: 2, name: 'Desktop' }
+    const refs = [
+      { uid: 1, from: epic },
+      { uid: 2, from: epic },
+      { uid: 3, from: project }
+    ]
+    assert.deepEqual(refSources(refs), [
+      { from: epic, refs: [refs[0], refs[1]] },
+      { from: project, refs: [refs[2]] }
+    ])
+    assert.deepEqual(refSources([]), [])
   })
 })
 

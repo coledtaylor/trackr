@@ -2,7 +2,8 @@
 /**
  * What the epic and task views share: the writes, editors that keep what was
  * typed when the page draws again, and the pieces both views draw (the title,
- * the description, the properties card, the links).
+ * the description, the properties card, the links). The portfolio and project
+ * views use the editors and writes for their references.
  *
  * Every write is the person's. `editItem` logs it as "You", the way a
  * session's update is logged with the session's name.
@@ -14,7 +15,7 @@
 
 import { TRASH, confirmDanger } from '../shared/dialog.js'
 import { ICONS, el, lineIcon, priorityGlyph, selectFace, statusIcon, swatch, toast } from '../shared/dom.js'
-import { LINK_KINDS, age, artifactText, codeSpans, linkText, openableAddress, paragraphs, priorityMark, timeLabel } from '../shared/logic.js'
+import { LINK_KINDS, age, codeSpans, fileOpener, linkText, openableAddress, paragraphs, platformOf, priorityMark, timeLabel } from '../shared/logic.js'
 import { announceChange, rpc } from '../shared/work.js'
 
 /** Who the person is in the log. */
@@ -30,11 +31,17 @@ export const YOU = 'You'
  */
 
 /**
- * @param {number} uid the item on screen
+ * @param {number | null} uid the item on screen; null on a page that shows no
+ *   item (a portfolio, a project), which writes through `call` only
  * @param {{ reload(): void, deleted?(item: Item): void }} host
  * @param {() => void} redraw draws the view again from what it has
  */
 export function createEditing(uid, host, redraw) {
+  /** The item on screen, for the writes that change it. */
+  function shown() {
+    if (uid === null) throw new Error('This page shows no item to change.')
+    return uid
+  }
   /** @type {Set<string>} */
   const open = new Set()
   /** @type {Map<string, Field>} */
@@ -67,7 +74,7 @@ export function createEditing(uid, host, redraw) {
      * @param {Record<string, unknown>} patch as the service's `editItem` takes it
      */
     async edit(patch) {
-      return (await write('editItem', [uid, patch, YOU])) !== undefined
+      return (await write('editItem', [shown(), patch, YOU])) !== undefined
     },
 
     /**
@@ -151,7 +158,7 @@ export function createEditing(uid, host, redraw) {
         title: `Delete ${item.id}`,
         lines: deleteLines(item),
         confirm: item.kind === 'epic' ? 'Delete epic' : 'Delete task',
-        run: () => rpc('deleteItem', uid)
+        run: () => rpc('deleteItem', shown())
       })
       if (!ran) return
       host.deleted?.(item)
@@ -550,19 +557,19 @@ export function propertiesCard(editing, data) {
 }
 
 /** @type {Record<string, string>} */
-const LINK_ICONS = { branch: ICONS.branch, pr: ICONS.pr, commit: ICONS.commit, file: ICONS.file, artifact: ICONS.artifact, url: ICONS.external }
+const LINK_ICONS = { branch: ICONS.branch, pr: ICONS.pr, commit: ICONS.commit, file: ICONS.file, url: ICONS.external }
 
 /**
- * The links, and a form to add one. An `https` address opens in Helm's
- * Browser tab when pressed and has a button to copy it; anything else (a
- * branch, a commit, a file) is copied when pressed. Artifacts have their own
- * card.
+ * The links, and a form to add one: what the work produced. An `https`
+ * address opens in Helm's Browser tab when pressed and has a button to copy
+ * it; anything else (a branch, a commit, a file) is copied when pressed. What
+ * the work follows is in the References card.
  *
  * @param {Editing} editing
  * @param {Item} item
  */
 export function linksCard(editing, item) {
-  const rows = item.links.filter((link) => link.kind !== 'artifact').map((link) => linkRow(editing, link, linkText(link)))
+  const rows = item.links.map((link) => linkRow(editing, link, linkText(link)))
   const adding = editing.isOpen('link')
   return el('div', { class: 'it-card it-links' }, [
     el('h2', { class: 'it-h2 it-card-title', text: 'Links' }),
@@ -573,42 +580,11 @@ export function linksCard(editing, item) {
 }
 
 /**
- * The artifacts the work follows (UI mockups, design documents), and a form
- * to add one. A task also shows its epic's, which are removed on the epic.
- * Adding an artifact that is already there with a label relabels it.
- *
- * @param {Editing} editing
- * @param {Item} item
- */
-export function artifactsCard(editing, item) {
-  const own = item.links.filter((link) => link.kind === 'artifact')
-  const inherited = item.epicArtifacts.filter((link) => !own.some((mine) => mine.value === link.value))
-  const epic = item.epic?.id ?? null
-  const rows = [
-    ...own.map((link) => linkRow(editing, link, artifactText(link, null))),
-    ...inherited.map((link) => linkRow(editing, link, artifactText(link, epic), { removable: false }))
-  ]
-  const adding = editing.isOpen('artifact')
-  return el('div', { class: 'it-card it-links' }, [
-    el('h2', { class: 'it-h2 it-card-title', text: 'Artifacts' }),
-    ...rows,
-    rows.length === 0 && !adding ? el('p', { class: 'it-none', text: 'No mockups or design documents yet.' }) : null,
-    adding
-      ? artifactForm(editing)
-      : el('button', { class: 'it-add-row', attrs: { type: 'button' }, on: { click: () => editing.start('artifact', 'artifact.value') } }, [
-          lineIcon(ICONS.plus, 12, 1.8),
-          'Add an artifact'
-        ])
-  ])
-}
-
-/**
  * @param {Editing} editing
  * @param {Link} link
  * @param {{ text: string, meta: string, mono: boolean }} text
- * @param {{ removable?: boolean }} [options] removable: false for a link that belongs to another item
  */
-function linkRow(editing, link, text, options = {}) {
+function linkRow(editing, link, text) {
   const address = openableAddress(link.value)
   const copy = () => void editing.copy(link.value, link.value)
   return el('div', { class: 'it-link' }, [
@@ -629,9 +605,7 @@ function linkRow(editing, link, text, options = {}) {
       ]
     ),
     address === null ? null : iconButton('Copy the address', ICONS.copy, copy, 'it-remove'),
-    options.removable === false
-      ? null
-      : iconButton(link.kind === 'artifact' ? 'Remove this artifact' : 'Remove this link', ICONS.close, () => void editing.edit({ links: { remove: [link.uid] } }), 'it-remove')
+    iconButton('Remove this link', ICONS.close, () => void editing.edit({ links: { remove: [link.uid] } }), 'it-remove')
   ])
 }
 
@@ -641,12 +615,29 @@ function linkRow(editing, link, text, options = {}) {
  *
  * @param {string} address
  */
-async function openLink(address) {
+export async function openLink(address) {
   try {
     await helm.open(address)
   } catch (error) {
     if (/** @type {{ code?: string }} */ (error).code === 'busy') return
     toast(`Could not open ${address}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/**
+ * Opens a file with the program the computer opens it with, or shows a file
+ * that would run in its folder (logic.js fileOpener). Explorer answers 1 even
+ * when it worked, so on Windows only a failure to start counts.
+ *
+ * @param {string} path absolute
+ */
+export async function openFile(path) {
+  const { program, args } = fileOpener(path, platformOf(navigator.userAgent))
+  try {
+    const result = await helm.exec(program, args, { timeoutMs: 15_000 })
+    if (program !== 'explorer' && result.exitCode !== 0) toast(`Could not open ${path}: ${result.stderr.trim() || `${program} answered ${result.exitCode}`}`)
+  } catch (error) {
+    toast(`Could not open ${path}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -667,7 +658,7 @@ function linkForm(editing) {
     const select = el(
       'select',
       { class: 'helm-select it-select', attrs: { 'aria-label': 'Kind' } },
-      LINK_KINDS.filter(([key]) => key !== 'artifact').map(([key, text]) => el('option', { text, attrs: { value: key } }))
+      LINK_KINDS.map(([key, text]) => el('option', { text, attrs: { value: key } }))
     )
     return select
   })
@@ -675,25 +666,6 @@ function linkForm(editing) {
     kind,
     lineField(editing, 'link.value', { label: 'Value', placeholder: 'feat/saved-views, #412, a path or address', onEnter: () => void save(), onEscape: cancel }),
     lineField(editing, 'link.label', { label: 'Label', placeholder: 'Label, if it needs one', onEnter: () => void save(), onEscape: cancel }),
-    editorActions(() => void save(), cancel, 'Enter adds')
-  ])
-}
-
-/** @param {Editing} editing */
-function artifactForm(editing) {
-  const save = async () => {
-    const value = editing.field('artifact.value', () => el('input')).value.trim()
-    const label = editing.field('artifact.label', () => el('input')).value.trim()
-    if (value === '') {
-      toast("Paste the artifact's claude.ai address.")
-      return
-    }
-    if (await editing.edit({ links: { add: [{ kind: 'artifact', value, label }] } })) editing.close('artifact')
-  }
-  const cancel = () => editing.close('artifact')
-  return el('div', { class: 'it-link-form' }, [
-    lineField(editing, 'artifact.value', { label: 'Address', placeholder: 'https://claude.ai/artifact/…', onEnter: () => void save(), onEscape: cancel }),
-    lineField(editing, 'artifact.label', { label: 'Label', placeholder: 'What it is, like "Settings mockup"', onEnter: () => void save(), onEscape: cancel }),
     editorActions(() => void save(), cancel, 'Enter adds')
   ])
 }

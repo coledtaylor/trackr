@@ -40,9 +40,14 @@
     "node": "service/main.mjs",
     "start": "demand"
   },
+  "exec": {
+    "explorer": "explorer.exe",
+    "open": "open",
+    "xdg-open": "xdg-open"
+  },
   "background": "pages/background.html",
   "agent": {
-    "instructions": "Work tracking on this computer: portfolios > projects > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. Its artifacts are mockups and design documents the work follows: read the ones the work touches with the Artifact tool. When a task comes from a mockup or design, link it in artifacts rather than copying it into the description. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. There is no delete: set an item to Cancelled.",
+    "instructions": "Work tracking on this computer: portfolios > projects > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. Its References are the designs, docs, artifacts and files the work follows, each with a use line: read the ones whose use fits what you are about to do, with the tool for their kind. When work comes from a design or doc, add it to the references of the task, epic, project or portfolio it governs, with a use line, rather than copying it into the description; set key when everything under that should see it. If a change makes a referenced doc wrong, update the doc or say so in the handoff. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. There is no delete: set an item to Cancelled.",
     "tools": {
       "find": {
         "description": "Lists items one line each, next up first: ID, status, priority, title, epic, criteria done, what it waits on, the session on it. With no arguments: open items in the project of this session's folder. Filters combine.",
@@ -91,7 +96,7 @@
         }
       },
       "get": {
-        "description": "Everything about one or more items: status, project and folder, session, dependencies, links, description, artifacts (its own and its epic's), acceptance criteria (numbered), where it stands (done, left, next) and the latest log lines. An epic also lists its tasks by project.",
+        "description": "Everything about one or more items: status, project and folder, session, dependencies, links, description, references (its own, then the key ones of its epic, project and portfolio), acceptance criteria (numbered), where it stands (done, left, next) and the latest log lines. An epic also lists its tasks by project. A portfolio key or project name gives its projects or folders, its open work and its references.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -100,7 +105,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "IDs, like [\"TC-123\"]."
+              "description": "IDs like \"TC-123\", portfolio keys like \"TC\", or project names like \"Desktop\" or \"TC/Desktop\"."
             },
             "log": {
               "type": "integer",
@@ -197,33 +202,46 @@
                         }
                       ]
                     },
-                    "description": "\"branch feat/x\", \"PR #412\", \"commit b7f02c1\", \"file src/a.py\", or a URL. Artifacts go in artifacts."
+                    "description": "\"branch feat/x\", \"PR #412\", \"commit b7f02c1\", \"file src/a.py\", or a URL: what the work produced. What it follows goes in references."
                   },
-                  "artifacts": {
+                  "references": {
                     "type": "array",
                     "items": {
-                      "anyOf": [
-                        {
-                          "type": "string"
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "type": "string",
+                          "description": "A claude.ai artifact's address, a doc or web address, or a file: absolute, ~/..., or relative to this session's folder."
                         },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "url": {
-                              "type": "string"
-                            },
-                            "label": {
-                              "type": "string",
-                              "description": "What it is, like \"Settings page mockup\"."
-                            }
-                          },
-                          "required": [
+                        "title": {
+                          "type": "string",
+                          "description": "What it is, like \"Sync design\". Default: the target."
+                        },
+                        "use": {
+                          "type": "string",
+                          "description": "When to read it, like \"Read when changing the sync engine\". Agents decide from this line alone whether to open it."
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "artifact",
+                            "doc",
+                            "file",
                             "url"
-                          ]
+                          ],
+                          "description": "Default: from the target. A claude.ai artifact is artifact; Notion, Google Docs and the like are doc; other web addresses url; anything else file."
+                        },
+                        "key": {
+                          "type": "boolean",
+                          "description": "Show it on everything under its owner too: a portfolio's on its projects, epics and tasks. Default false."
                         }
+                      },
+                      "required": [
+                        "target",
+                        "use"
                       ]
                     },
-                    "description": "Epics and tasks: claude.ai artifacts the work follows, like UI mockups and design documents. Link them rather than copying them into the description; an epic's artifacts show on its tasks too."
+                    "description": "All four kinds: what the work follows, like designs, mockups, specs and docs, each with a line saying when to read it. Reference them rather than copying them into the description."
                   },
                   "key": {
                     "type": "string",
@@ -265,7 +283,7 @@
         }
       },
       "update": {
-        "description": "Changes several items in one call: fields, acceptance criteria, the handoff, a log line, links, artifacts and dependencies. Criteria numbers are as get shows them. Replies one line per item, then what became ready. Setting a task to an active status records this session on it.",
+        "description": "Changes several items in one call: fields, acceptance criteria, the handoff, a log line, links, references and dependencies. Portfolios and projects take only references. Criteria numbers are as get shows them. Replies one line per item, then what became ready. Setting a task to an active status records this session on it.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -275,7 +293,8 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "An item ID, a portfolio key, or a project name (KEY/Name when it is in more than one portfolio). Portfolios and projects take only references."
                   },
                   "title": {
                     "type": "string"
@@ -385,25 +404,122 @@
                           "type": "string"
                         }
                       }
-                    }
+                    },
+                    "description": "What the work produced, as create takes them. What it follows goes in references."
                   },
-                  "artifacts": {
+                  "references": {
                     "type": "object",
                     "properties": {
                       "add": {
                         "type": "array",
-                        "items": {},
-                        "description": "Addresses, or {url, label}. Adding one again with a label relabels it."
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "target": {
+                              "type": "string",
+                              "description": "A claude.ai artifact's address, a doc or web address, or a file: absolute, ~/..., or relative to this session's folder."
+                            },
+                            "title": {
+                              "type": "string",
+                              "description": "What it is, like \"Sync design\". Default: the target."
+                            },
+                            "use": {
+                              "type": "string",
+                              "description": "When to read it, like \"Read when changing the sync engine\". Agents decide from this line alone whether to open it."
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "artifact",
+                                "doc",
+                                "file",
+                                "url"
+                              ],
+                              "description": "Default: from the target. A claude.ai artifact is artifact; Notion, Google Docs and the like are doc; other web addresses url; anything else file."
+                            },
+                            "key": {
+                              "type": "boolean",
+                              "description": "Show it on everything under its owner too: a portfolio's on its projects, epics and tasks. Default false."
+                            }
+                          },
+                          "required": [
+                            "target"
+                          ]
+                        },
+                        "description": "As create takes them; a new one needs use. Adding one that is there changes only the fields given."
+                      },
+                      "set": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "target": {
+                              "type": "string",
+                              "description": "A claude.ai artifact's address, a doc or web address, or a file: absolute, ~/..., or relative to this session's folder."
+                            },
+                            "title": {
+                              "type": "string",
+                              "description": "What it is, like \"Sync design\". Default: the target."
+                            },
+                            "use": {
+                              "type": "string",
+                              "description": "When to read it, like \"Read when changing the sync engine\". Agents decide from this line alone whether to open it."
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "artifact",
+                                "doc",
+                                "file",
+                                "url"
+                              ],
+                              "description": "Default: from the target. A claude.ai artifact is artifact; Notion, Google Docs and the like are doc; other web addresses url; anything else file."
+                            },
+                            "key": {
+                              "type": "boolean",
+                              "description": "Show it on everything under its owner too: a portfolio's on its projects, epics and tasks. Default false."
+                            }
+                          },
+                          "required": [
+                            "target"
+                          ]
+                        },
+                        "description": "The title, use or key of a reference found by its target; kind only picks between two with the same target."
                       },
                       "remove": {
                         "type": "array",
                         "items": {
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "target": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "artifact",
+                                    "doc",
+                                    "file",
+                                    "url"
+                                  ],
+                                  "description": "Default: from the target. A claude.ai artifact is artifact; Notion, Google Docs and the like are doc; other web addresses url; anything else file."
+                                }
+                              },
+                              "required": [
+                                "target"
+                              ]
+                            }
+                          ]
                         },
-                        "description": "Addresses."
+                        "description": "Targets, as get shows them."
                       }
                     },
-                    "description": "claude.ai artifacts the work follows: UI mockups, design documents."
+                    "description": "What the work follows: designs, mockups, specs and docs, each with a line saying when to read it."
                   },
                   "waitsOn": {
                     "type": "object",

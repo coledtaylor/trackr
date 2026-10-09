@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, test } from 'node:test'
+import { pathState } from '../service/folders.mjs'
+import { INHERITED_REF_LINES } from '../service/model.mjs'
 import { dispatchTool } from '../service/rpc.mjs'
 import { WorkStore } from '../service/store.mjs'
-import { parseArtifact, parseLink, runTool } from '../service/tools.mjs'
+import { parseLink, parseReference, runTool } from '../service/tools.mjs'
 
 const HOME = process.platform === 'win32' ? 'C:\\Users\\me' : '/home/me'
 const DESKTOP = join(HOME, 'code', 'tidecast')
@@ -35,8 +39,9 @@ const elsewhere = { id: 'sess-x', name: 'elsewhere', cwd: join(HOME, 'Downloads'
  * @param {string} name
  * @param {unknown} args
  * @param {{ id: string, name: string, cwd: string }} session
+ * @param {(path: string) => import('../service/folders.mjs').PathState} [pathState] the files under HOME are made up, so they count as there
  */
-const call = (name, args, session) => runTool(store, name, args, session, { now: time.now, timeZone: 'UTC', home: HOME })
+const call = (name, args, session, pathState = () => 'present') => runTool(store, name, args, session, { now: time.now, timeZone: 'UTC', home: HOME, pathState })
 
 beforeEach(() => {
   time = clock()
@@ -118,7 +123,7 @@ describe('create', () => {
 
   test('refuses unknown fields, refs that look like IDs, and refs that do not exist', () => {
     assert.throws(() => call('create', { items: [{ title: 'x', assignee: 'me' }] }, s3), {
-      message: 'items[0] does not take "assignee". It takes ref, kind, project, epic, title, description, status, priority, ac, waitsOn, links, artifacts.'
+      message: 'items[0] does not take "assignee". It takes ref, kind, project, epic, title, description, status, priority, ac, waitsOn, links, references.'
     })
     assert.throws(() => call('create', { items: [{ ref: 'TC-9', title: 'x' }] }, s3), /looks like an ID/)
     assert.throws(() => call('create', { items: [{ title: 'x', waitsOn: ['nope'] }] }, s3), {
@@ -206,7 +211,7 @@ describe('create portfolios and projects', () => {
       message: 'items[0].kind is task, epic, project or portfolio, not "team".'
     })
     assert.throws(() => call('create', { items: [{ kind: 'portfolio', key: 'NW', name: 'Newco', title: 'x' }] }, s3), {
-      message: 'items[0] does not take "title". It takes kind, key, name, description.'
+      message: 'items[0] does not take "title". It takes kind, key, name, description, references.'
     })
     assert.throws(() => call('create', { items: [{ kind: 'project', name: 'App' }] }, s3), { message: 'items[0].portfolio must be text.' })
     assert.throws(() => call('create', { items: [{ kind: 'project', portfolio: 'TC', name: 'App', colour: 'danger' }] }, s3), {
@@ -529,89 +534,378 @@ describe('links written as text', () => {
     assert.deepEqual(parseLink('PR #412', 'x'), { kind: 'pr', value: '412' })
     assert.deepEqual(parseLink('file reports/view label.py', 'x'), { kind: 'file', value: 'reports/view label.py' })
     assert.deepEqual(parseLink('https://example.com/a', 'x'), { kind: 'url', value: 'https://example.com/a' })
-    assert.deepEqual(parseLink('https://claude.ai/artifact/abc', 'x'), { kind: 'artifact', value: 'https://claude.ai/artifact/abc' })
-    assert.deepEqual(parseLink('artifact https://claude.ai/artifact/abc', 'x'), { kind: 'artifact', value: 'https://claude.ai/artifact/abc' })
     assert.throws(() => parseLink('branch', 'x'), /is not a link/)
   })
 })
 
-describe('artifacts', () => {
+describe('references', () => {
   const MOCKUP = 'https://claude.ai/artifact/mock1'
   const DESIGN = 'https://claude.ai/code/artifact/0b6f-42aa'
+  const NOTION = 'https://www.notion.so/acme/Sync-design-0b6f'
+  const SITE = 'https://example.com/spec'
+  /** The line under the references naming the tools for the kinds shown. @param {string[]} tools */
+  const hint = (...tools) => `Read the ones whose use fits the work: ${tools.join(', ')}.`
+  const paths = { cwd: DESKTOP, home: HOME }
 
-  test('parse an address or {url, label}, and refuse anything else', () => {
-    assert.deepEqual(parseArtifact(MOCKUP, 'x'), { kind: 'artifact', value: MOCKUP, label: undefined })
-    assert.deepEqual(parseArtifact({ url: ` ${DESIGN} `, label: ' Sync design ' }, 'x'), { kind: 'artifact', value: DESIGN, label: 'Sync design' })
-    assert.throws(() => parseArtifact('https://example.com/artifact/abc', 'x'), {
-      message: 'x: "https://example.com/artifact/abc" is not a claude.ai artifact. Give its address, like https://claude.ai/artifact/…, or {url, label}.'
-    })
-    assert.throws(() => parseArtifact('http://claude.ai/artifact/abc', 'x'), /is not a claude.ai artifact/)
-    assert.throws(() => parseArtifact('https://claude.ai/chat/abc', 'x'), /is not a claude.ai artifact/)
-    assert.throws(() => parseArtifact({ url: MOCKUP, kind: 'artifact' }, 'x'), /x does not take "kind"/)
-    assert.throws(() => parseArtifact(42, 'x'), /x: that is not a claude.ai artifact/)
+  /**
+   * An owner's references, the parts a test checks.
+   *
+   * @param {import('../service/store.mjs').RefOwner} owner
+   */
+  const refsOf = (owner) => store.listRefs(owner).map((ref) => [ref.kind, ref.target, ref.title, ref.use, ref.key])
+
+  test('the kind comes from the target', () => {
+    const kind = (/** @type {string} */ target) => parseReference({ target, use: 'u' }, 'x', paths).kind
+    assert.equal(kind(MOCKUP), 'artifact')
+    assert.equal(kind(DESIGN), 'artifact')
+    assert.equal(kind(NOTION), 'doc')
+    assert.equal(kind('https://acme.notion.site/Plan'), 'doc')
+    assert.equal(kind('https://docs.google.com/document/d/1abc/edit'), 'doc')
+    assert.equal(kind('https://acme.atlassian.net/wiki/spaces/ENG/pages/1'), 'doc')
+    assert.equal(kind('https://acme.atlassian.net/browse/ENG-1'), 'url')
+    assert.equal(kind('https://claude.ai/chat/abc'), 'url')
+    assert.equal(kind(SITE), 'url')
+    assert.equal(kind('docs/sync.md'), 'file')
+    assert.equal(kind(join(API, 'README.md')), 'file')
   })
 
-  test("get lists them in their own section, the epic's after the task's, and not among links", () => {
+  test('parse one, a file coming back absolute', () => {
+    assert.deepEqual(parseReference({ target: ' docs/sync.md ', title: ' Sync design ', use: ' Read when changing sync ', key: true }, 'x', paths), {
+      kind: 'file',
+      target: join(DESKTOP, 'docs', 'sync.md'),
+      title: 'Sync design',
+      use: 'Read when changing sync',
+      key: true
+    })
+    assert.equal(parseReference({ target: '~/notes/plan.md' }, 'x', paths).target, join(HOME, 'notes', 'plan.md'))
+    assert.equal(parseReference({ target: join(API, 'README.md') }, 'x', paths).target, join(API, 'README.md'))
+    assert.deepEqual(parseReference({ target: SITE, kind: ' Doc ' }, 'x', paths), { kind: 'doc', target: SITE })
+  })
+
+  test('refuse a kind that does not fit its target, and other mistakes, naming the field', () => {
+    assert.throws(() => parseReference({ target: SITE, kind: 'artifact', use: 'u' }, 'x', paths), {
+      message: `x.kind is artifact, but ${SITE} is not a claude.ai artifact, whose address is like https://claude.ai/artifact/…. Leave kind out to have it worked out from the target.`
+    })
+    assert.throws(() => parseReference({ target: 'docs/a.md', kind: 'doc' }, 'x', paths), { message: 'x.kind is doc, but docs/a.md is not a web address. Leave kind out for a file.' })
+    assert.throws(() => parseReference({ target: SITE, kind: 'file' }, 'x', paths), { message: `x.kind is file, but ${SITE} is a web address. Leave kind out, or use url or doc.` })
+    assert.throws(() => parseReference({ target: SITE, kind: 'page' }, 'x', paths), {
+      message: 'x.kind is artifact, doc, file or url, not "page". Leave it out to have it worked out from the target.'
+    })
+    assert.throws(() => parseReference({ target: 'ftp://host/a' }, 'x', paths), { message: 'x.target: ftp://host/a is not a web address or a file path.' })
+    assert.throws(() => parseReference({ target: 'a.md' }, 'x', { cwd: '', home: HOME }), {
+      message: "x.target: a.md is a relative path, and this session has no folder to read it from. Give the file's full path."
+    })
+    assert.throws(() => parseReference(SITE, 'x', paths), { message: 'x: a reference is {target, title, use}, with kind and key when wanted.' })
+    assert.throws(() => parseReference({ target: SITE, key: 'yes' }, 'x', paths), /x.key is true or false/)
+    assert.throws(() => parseReference({ target: SITE, use: ' ' }, 'x', paths), /x.use must be a line saying when to read it/)
+    assert.throws(() => parseReference({ url: SITE }, 'x', paths), /x does not take "url"/)
+    assert.throws(() => parseReference({ use: 'u' }, 'x', paths), { message: 'x.target must be text.' })
+  })
+
+  test('create takes them on portfolios, projects, epics and tasks, and a task gets them all', () => {
+    const NEWCO = join(HOME, 'code', 'newco')
+    const ARCHITECTURE = join(NEWCO, 'docs', 'architecture.md')
     call(
       'create',
       {
         items: [
-          { ref: 'e', kind: 'epic', title: 'Saved views', artifacts: [{ url: DESIGN, label: 'Saved views design' }, MOCKUP] },
-          { epic: 'e', title: 'Rename a view', links: ['branch feat/rename'], artifacts: [{ url: MOCKUP, label: 'Rename mockup' }] }
+          { ref: 'e', kind: 'epic', project: 'App', title: 'Sync', references: [{ target: DESIGN, title: 'Sync design', use: 'Read before changing sync', key: true }] },
+          { epic: 'e', title: 'Conflict banner', references: [{ target: MOCKUP, title: 'Banner mockup', use: 'Read when building the banner' }] },
+          {
+            kind: 'project',
+            portfolio: 'NW',
+            name: 'App',
+            folders: [NEWCO],
+            references: [
+              { target: ARCHITECTURE, title: 'Architecture', use: 'Read when adding a module', key: true },
+              { target: SITE, use: 'Read when touching billing' }
+            ]
+          },
+          { kind: 'portfolio', key: 'NW', name: 'Newco', references: [{ target: NOTION, title: 'Handbook', use: 'Read before planning work', key: true }] }
         ]
       },
       s3
     )
+    assert.deepEqual(refsOf({ portfolio: 'NW' }), [['doc', NOTION, 'Handbook', 'Read before planning work', true]])
+    assert.deepEqual(refsOf({ project: 'App', portfolio: 'NW' }), [
+      ['file', ARCHITECTURE, 'Architecture', 'Read when adding a module', true],
+      ['url', SITE, SITE, 'Read when touching billing', false]
+    ])
+    assert.deepEqual(refsOf({ item: 'NW-1' }), [['artifact', DESIGN, 'Sync design', 'Read before changing sync', true]])
+    assert.equal(store.getItem('NW-1').log.entries.at(-1)?.text, 'Created')
     assert.equal(
-      call('get', { ids: ['TC-2'], log: 0 }, s3),
+      call('get', { ids: ['NW-2'], log: 0 }, s3),
       [
-        'TC-2 Rename a view',
-        'task · Backlog · Normal · TideCast/Desktop (~/code/tidecast) · epic TC-1 Saved views',
-        'links: branch feat/rename',
+        'NW-2 Conflict banner',
+        'task · Backlog · Normal · Newco/App (~/code/newco) · epic NW-1 Sync',
         '',
-        '## Artifacts',
-        'Mockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.',
-        `Rename mockup · ${MOCKUP}`,
-        `Saved views design · ${DESIGN} · from epic TC-1`
+        '## References',
+        `artifact Banner mockup · ${MOCKUP} · Read when building the banner`,
+        `artifact Sync design · ${DESIGN} · Read before changing sync · from epic NW-1`,
+        `file Architecture · ${ARCHITECTURE} · Read when adding a module · from project App`,
+        `doc Handbook · ${NOTION} · Read before planning work · from portfolio NW`,
+        hint('artifacts with the Artifact tool', 'docs with their connector', 'files with Read')
       ].join('\n')
     )
-    const epic = call('get', { ids: ['TC-1'], log: 0 }, s3)
-    assert.ok(epic.includes(`## Artifacts\nMockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.\nSaved views design · ${DESIGN}\n${MOCKUP}\n`))
-    assert.ok(!epic.includes('links:'))
   })
 
-  test('an artifact link made before the field shows as an artifact', () => {
-    call('create', { items: [{ title: 'Old', links: [`artifact ${MOCKUP}`] }] }, s3)
-    const text = call('get', { ids: ['TC-1'], log: 0 }, s3)
-    assert.ok(text.endsWith(`## Artifacts\nMockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.\n${MOCKUP}`))
-    assert.ok(!text.includes('links:'))
-  })
-
-  test('update adds, relabels and removes them, and says so', () => {
-    call('create', { items: [{ title: 'T', links: ['branch feat/x'] }] }, s3)
-    assert.equal(call('update', { items: [{ id: 'TC-1', artifacts: { add: [MOCKUP, DESIGN] } }] }, s3), 'TC-1 artifact +2')
-    call('update', { items: [{ id: 'TC-1', artifacts: { add: [{ url: MOCKUP, label: 'Settings mockup' }] } }] }, s3)
-    assert.deepEqual(
-      store.getItem('TC-1').links.map((l) => [l.kind, l.value, l.label]),
-      [
-        ['branch', 'feat/x', ''],
-        ['artifact', MOCKUP, 'Settings mockup'],
-        ['artifact', DESIGN, '']
-      ]
+  test('get on a portfolio or a project: a short summary and its references', () => {
+    call('create', { items: [{ title: 'A' }, { title: 'B', status: 'In progress' }] }, s3)
+    const reply = call(
+      'update',
+      {
+        items: [
+          { id: 'TC', references: { add: [{ target: NOTION, title: 'Handbook', use: 'Read before planning work', key: true }] } },
+          { id: 'Desktop', references: { add: [{ target: 'docs/sync.md', use: 'Read when changing sync' }] } }
+        ]
+      },
+      s3
     )
-    assert.equal(call('update', { items: [{ id: 'TC-1', artifacts: { remove: [DESIGN] }, links: { remove: ['feat/x'] } }] }, s3), 'TC-1 link -1 · artifact -1')
-    assert.deepEqual(store.getItem('TC-1').links.map((l) => l.value), [MOCKUP])
-    assert.equal(store.getItem('TC-1').log.entries.at(-1)?.text, 'link -1 · artifact -1')
-    assert.throws(() => call('update', { items: [{ id: 'TC-1', artifacts: { remove: [DESIGN] } }] }, s3), {
-      message: `TC-1.artifacts.remove: there is no artifact ${DESIGN}.`
-    })
-    assert.throws(() => call('update', { items: [{ id: 'TC-1', artifacts: { add: ['https://example.com'] } }] }, s3), /TC-1.artifacts.add: .* is not a claude.ai artifact/)
-    assert.throws(() => call('update', { items: [{ id: 'TC-1', artifacts: [MOCKUP] }] }, s3), /TC-1.artifacts must be an object/)
+    assert.equal(reply, 'TC ref +1\nTC/Desktop ref +1')
+    assert.equal(
+      call('get', { ids: ['TC', 'desktop', 'TC/Reporting API'] }, s3),
+      [
+        'TC TideCast',
+        'portfolio · projects Desktop, Reporting API · 2 open tasks, 1 active',
+        '',
+        '## References',
+        `doc Handbook · ${NOTION} · Read before planning work · key`,
+        hint('docs with their connector'),
+        '',
+        '---',
+        '',
+        'TC/Desktop',
+        'project · portfolio TC TideCast · ~/code/tidecast · 2 open tasks, 1 active',
+        '',
+        '## References',
+        `file ${join(DESKTOP, 'docs', 'sync.md')} · Read when changing sync`,
+        hint('files with Read'),
+        '',
+        '---',
+        '',
+        'TC/Reporting API',
+        'project · portfolio TC TideCast · ~/code/tidecast-reporting · 0 open tasks'
+      ].join('\n')
+    )
+    const missing = 'There is no item, portfolio or project Mobile. Name an item by its ID (TC-123), a portfolio by its key (TC) or a project by its name (Desktop, or TC/Desktop).'
+    assert.throws(() => call('get', { ids: ['Mobile'] }, s3), { code: 'not-found', message: missing })
+    assert.ok(call('get', { ids: ['TC-1', 'Mobile'], log: 0 }, s3).endsWith(`---\n\n${missing}`))
+    assert.throws(() => call('get', { ids: [' '] }, s3), /ids is a list of IDs, portfolio keys or project names/)
   })
 
-  test('a link of kind artifact must be a claude.ai artifact too', () => {
-    assert.throws(() => call('create', { items: [{ title: 'T', links: ['artifact https://example.com/x'] }] }, s3), /is not a claude.ai artifact/)
-    assert.throws(() => call('create', { items: [{ title: 'T', artifacts: ['nope'] }] }, s3), /items\[0\].artifacts: "nope" is not a claude.ai artifact/)
+  test('update adds, edits and removes them on all four levels, and says so', () => {
+    call('create', { items: [{ ref: 'e', kind: 'epic', title: 'Sync' }, { epic: 'e', title: 'Banner' }] }, s3)
+    const both = [
+      { target: NOTION, use: 'Read before planning' },
+      { target: SITE, use: 'Read when touching billing' }
+    ]
+    const ids = ['TC', 'Desktop', 'TC-1', 'TC-2']
+    assert.equal(
+      call('update', { items: ids.map((id) => ({ id, references: { add: both } })) }, s3),
+      'TC ref +2\nTC/Desktop ref +2\nTC-1 ref +2\nTC-2 ref +2'
+    )
+    assert.equal(
+      call(
+        'update',
+        { items: ids.map((id) => ({ id, references: { set: [{ target: SITE, title: 'Billing spec', use: 'Read when changing prices', key: true }], remove: [NOTION] } })) },
+        s3
+      ),
+      'TC ref -1 · ref edited 1\nTC/Desktop ref -1 · ref edited 1\nTC-1 ref -1 · ref edited 1\nTC-2 ref -1 · ref edited 1'
+    )
+    const after = [['url', SITE, 'Billing spec', 'Read when changing prices', true]]
+    assert.deepEqual(refsOf({ portfolio: 'TC' }), after)
+    assert.deepEqual(refsOf({ project: 'Desktop', portfolio: 'TC' }), after)
+    assert.deepEqual(refsOf({ item: 'TC-1' }), after)
+    assert.deepEqual(refsOf({ item: 'TC-2' }), after)
+    assert.deepEqual(
+      store.getItem('TC-2').log.entries.map((entry) => entry.text),
+      ['Created', 'ref +2', 'ref -1 · ref edited 1']
+    )
+  })
+
+  test('adding one that is there changes only the fields given', () => {
+    call('create', { items: [{ title: 'T', references: [{ target: SITE, title: 'Spec', use: 'Read when changing prices', key: true }] }] }, s3)
+    assert.equal(call('update', { items: [{ id: 'TC-1', references: { add: [{ target: SITE, title: 'Billing spec' }] } }] }, s3), 'TC-1 ref edited 1')
+    assert.deepEqual(refsOf({ item: 'TC-1' }), [['url', SITE, 'Billing spec', 'Read when changing prices', true]])
+    assert.equal(call('update', { items: [{ id: 'TC-1', references: { add: [{ target: SITE }] } }] }, s3), 'TC-1 unchanged')
+
+    const file = join(DESKTOP, 'docs', 'a.md')
+    call('update', { items: [{ id: 'TC-1', references: { add: [{ target: 'docs/a.md', use: 'Read when X' }] } }] }, s3)
+    assert.equal(call('update', { items: [{ id: 'TC-1', references: { add: [{ target: file, key: true }] } }] }, s3), 'TC-1 ref edited 1')
+    assert.deepEqual(refsOf({ item: 'TC-1' }).at(-1), ['file', file, 'docs/a.md', 'Read when X', true])
+    assert.equal(call('update', { items: [{ id: 'TC-1', references: { remove: ['~/code/tidecast/docs/a.md'] } }] }, s3), 'TC-1 ref -1')
+    assert.equal(store.listRefs({ item: 'TC-1' }).length, 1)
+  })
+
+  test('mistakes name the field, and change nothing', () => {
+    call('create', { items: [{ title: 'T', references: [{ target: SITE, use: 'Read when X' }] }] }, s3)
+    const use = 'a reference needs a line saying when to read it, like "Read when changing the sync engine".'
+    assert.throws(() => call('create', { items: [{ title: 'U', references: [{ target: SITE }] }] }, s3), { message: `items[0].references[0].use is missing: ${use}` })
+    assert.throws(
+      () => call('update', { items: [{ id: 'TC-1', references: { add: [{ target: NOTION, use: 'Read when Y' }, { target: MOCKUP }] } }] }, s3),
+      { message: `TC-1.references.add[1].use is missing: ${use}` }
+    )
+    assert.equal(store.listRefs({ item: 'TC-1' }).length, 1, 'the call before the mistake is undone')
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', references: { set: [{ target: SITE }] } }] }, s3), {
+      message: 'TC-1.references.set[0] changes nothing. Give title, use or key.'
+    })
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', references: { remove: [NOTION] } }] }, s3), {
+      code: 'not-found',
+      message: `TC-1.references.remove[0]: there is no reference ${NOTION}. Name it by its target, as get shows it.`
+    })
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', references: { add: [{ target: NOTION, title: 'x'.repeat(301), use: 'u' }] } }] }, s3), { message: /^TC-1.references.add\[0\]: / })
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', references: [SITE] }] }, s3), { message: 'TC-1.references must be an object.' })
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', references: { edit: [] } }] }, s3), /TC-1.references does not take "edit". It takes add, set, remove./)
+    assert.throws(() => call('update', { items: [{ id: 'TC', title: 'x' }] }, s3), { message: 'TC is a portfolio and does not take "title". It takes id, references.' })
+    assert.throws(() => call('update', { items: [{ id: 'Desktop', folders: [] }] }, s3), /TC\/Desktop is a project and does not take "folders"/)
+
+    call('update', { items: [{ id: 'TC-1', references: { add: [{ target: SITE, kind: 'doc', use: 'Read when Z' }] } }] }, s3)
+    assert.throws(() => call('update', { items: [{ id: 'TC-1', references: { remove: [SITE] } }] }, s3), {
+      message: `TC-1.references.remove[0]: ${SITE} is more than one reference (url, doc). Give {target, kind}.`
+    })
+    assert.equal(call('update', { items: [{ id: 'TC-1', references: { remove: [{ target: SITE, kind: 'doc' }] } }] }, s3), 'TC-1 ref -1')
+  })
+
+  describe('in get', () => {
+    /**
+     * A key reference for update.
+     *
+     * @param {string} target
+     * @param {string} title
+     */
+    const keyRef = (target, title) => ({ target, title, use: `Read when ${title}`, key: true })
+
+    /** The References section of one get, without its heading. @param {string} id */
+    const section = (id) => {
+      const text = call('get', { ids: [id], log: 0 }, s3)
+      const start = text.indexOf('## References\n')
+      assert.notEqual(start, -1, `${id} has references`)
+      return text.slice(start + '## References\n'.length).split('\n\n')[0].split('\n')
+    }
+
+    test('own first, then inherited nearest level first, each target once at its nearest level', () => {
+      const banner = join(DESKTOP, 'docs', 'banner.md')
+      call('create', { items: [{ ref: 'e', kind: 'epic', title: 'Sync' }, { epic: 'e', title: 'Banner' }] }, s3)
+      call(
+        'update',
+        {
+          items: [
+            { id: 'TC', references: { add: [keyRef(NOTION, 'Handbook'), keyRef(SITE, 'Old spec')] } },
+            {
+              id: 'Desktop',
+              references: {
+                add: [keyRef(SITE, 'Spec'), keyRef(DESIGN, 'Design again'), keyRef('docs/banner.md', 'Banner notes'), { target: 'https://example.com/team', use: 'Read when hiring' }]
+              }
+            },
+            { id: 'TC-1', references: { add: [keyRef(DESIGN, 'Sync design'), keyRef(MOCKUP, 'Old mockup')] } },
+            {
+              id: 'TC-2',
+              references: { add: [{ target: MOCKUP, title: 'Banner mockup', use: 'Read when building the banner' }, { target: 'docs/banner.md', use: 'Read when styling it' }] }
+            }
+          ]
+        },
+        s3
+      )
+      const tools = hint('artifacts with the Artifact tool', 'docs with their connector', 'files with Read', 'URLs with WebFetch')
+      assert.deepEqual(section('TC-2'), [
+        `artifact Banner mockup · ${MOCKUP} · Read when building the banner`,
+        `file ${banner} · Read when styling it`,
+        `artifact Sync design · ${DESIGN} · Read when Sync design · from epic TC-1`,
+        `url Spec · ${SITE} · Read when Spec · from project Desktop`,
+        `doc Handbook · ${NOTION} · Read when Handbook · from portfolio TC`,
+        tools
+      ])
+      // An epic inherits from its project and portfolio the same way.
+      assert.deepEqual(section('TC-1'), [
+        `artifact Sync design · ${DESIGN} · Read when Sync design · key`,
+        `artifact Old mockup · ${MOCKUP} · Read when Old mockup · key`,
+        `url Spec · ${SITE} · Read when Spec · from project Desktop`,
+        `file Banner notes · ${banner} · Read when Banner notes · from project Desktop`,
+        `doc Handbook · ${NOTION} · Read when Handbook · from portfolio TC`,
+        tools
+      ])
+    })
+
+    test(`past ${INHERITED_REF_LINES} inherited lines, what is left of each level is one line naming the get that shows it`, () => {
+      const urls = (/** @type {string} */ level, /** @type {number} */ count) =>
+        Array.from({ length: count }, (_, n) => keyRef(`https://example.com/${level}${n + 1}`, `${level} ${n + 1}`))
+      call('create', { items: [{ ref: 'e', kind: 'epic', title: 'Sync' }, { epic: 'e', title: 'Banner', references: [{ target: MOCKUP, use: 'Read when building it' }] }] }, s3)
+      call(
+        'update',
+        {
+          items: [
+            { id: 'TC', references: { add: urls('portfolio', 3) } },
+            { id: 'Desktop', references: { add: urls('project', 8) } },
+            { id: 'TC-1', references: { add: urls('epic', 4) } }
+          ]
+        },
+        s3
+      )
+      const lines = section('TC-2')
+      assert.equal(lines.length, 1 + INHERITED_REF_LINES + 3)
+      assert.equal(lines[0], `artifact ${MOCKUP} · Read when building it`)
+      assert.deepEqual(
+        lines.slice(1, -3).map((line) => line.split(' · ').at(-1)),
+        [...Array(4).fill('from epic TC-1'), ...Array(6).fill('from project Desktop')]
+      )
+      assert.deepEqual(lines.slice(-3), [
+        '+2 more on project Desktop (get Desktop)',
+        '+3 more on portfolio TC (get TC)',
+        hint('artifacts with the Artifact tool', 'URLs with WebFetch')
+      ])
+      assert.equal(section('Desktop').length, 8 + 1)
+
+      // A project whose bare name get would read as something else is named KEY/Name.
+      store.createPortfolio({ key: 'API', name: 'Api Co' })
+      store.createProject({ portfolio: 'TC', name: 'API', folders: [join(HOME, 'code', 'api')] })
+      call('create', { items: [{ project: 'TC/API', title: 'Endpoints' }] }, s3)
+      call('update', { items: [{ id: 'TC/API', references: { add: urls('api', INHERITED_REF_LINES + 1) } }] }, s3)
+      assert.deepEqual(section('TC-3').slice(-3), ['+1 more on project API (get TC/API)', '+3 more on portfolio TC (get TC)', hint('URLs with WebFetch')])
+      assert.equal(section('TC/API').length, INHERITED_REF_LINES + 2)
+    })
+
+    test('a file that is gone is marked missing, on every level; one that cannot be checked is not', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'trackr-refs-'))
+      try {
+        const here = join(dir, 'here.md')
+        writeFileSync(here, '# Here')
+        store.createProject({ portfolio: 'TC', name: 'Scratch', folders: [dir] })
+        call('create', { items: [{ project: 'Scratch', title: 'Read files' }] }, s3)
+        const refs = [
+          { target: here, use: 'Read when A' },
+          { target: join(dir, 'gone.md'), title: 'Gone', use: 'Read when B', key: true },
+          { target: join(here, 'inside.md'), use: 'Read when C' }
+        ]
+        call('update', { items: [{ id: 'TC-1', references: { add: refs } }, { id: 'TC', references: { add: [keyRef(join(dir, 'old.md'), 'Old')] } }] }, s3)
+        const text = call('get', { ids: ['TC-1', 'TC'], log: 0 }, s3, pathState)
+        const task = [
+          `file ${here} · Read when A`,
+          `file Gone · ${join(dir, 'gone.md')} · Read when B · key · missing`,
+          `file ${join(here, 'inside.md')} · Read when C · missing`,
+          `file Old · ${join(dir, 'old.md')} · Read when Old · from portfolio TC · missing`,
+          hint('files with Read')
+        ]
+        assert.ok(text.includes(task.join('\n')), text)
+        assert.ok(text.includes(`file Old · ${join(dir, 'old.md')} · Read when Old · key · missing`), text)
+
+        // A check that fails any other way, like a denied permission, marks nothing and fails nothing.
+        assert.ok(!call('get', { ids: ['TC-1'] }, s3, () => 'unknown').includes('missing'))
+        assert.equal(pathState(here), 'present')
+        assert.equal(pathState(join(dir, 'gone.md')), 'missing')
+        assert.equal(pathState(join(here, 'inside.md')), 'missing')
+        assert.equal(pathState(join(dir, 'bad\0name')), 'unknown')
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  test('an artifact given as a link points to references', () => {
+    const message = `items[0].links: ${MOCKUP} is a claude.ai artifact, which the work follows rather than produces. Add it to references, with a use line saying when to read it.`
+    assert.throws(() => call('create', { items: [{ title: 'T', links: [MOCKUP] }] }, s3), { message })
+    assert.throws(() => call('create', { items: [{ title: 'T', links: [`artifact ${MOCKUP}`] }] }, s3), { message })
+    assert.throws(() => call('create', { items: [{ title: 'T', links: [{ kind: 'artifact', value: MOCKUP }] }] }, s3), { message })
+    assert.equal(store.findItems({}).total, 0)
   })
 })
 

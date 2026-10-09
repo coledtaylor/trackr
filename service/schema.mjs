@@ -175,5 +175,42 @@ export const MIGRATIONS = [
     INSERT INTO status_history (item_id, grp, at)
       SELECT NEW.id, grp, NEW.updated_at FROM statuses WHERE id = NEW.status_id;
   END;
+  `,
+  // 3: references, what the work follows (design documents, artifacts, files,
+  // pages), held by a portfolio, a project or an item. Links keep what the
+  // work produced. A file inside one of its owner's project folders is stored
+  // relative to that folder (store.mjs).
+  //
+  // Each owner has a partial unique index, which is also its lookup index:
+  // one UNIQUE over three nullable columns would never match, since NULLs
+  // differ.
+  //
+  // Artifact links move here. An epic's become key references, so its tasks
+  // keep showing them as they did; a task's stay its own.
+  `
+  CREATE TABLE refs (
+    id           INTEGER PRIMARY KEY,
+    portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE CASCADE,
+    project_id   INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+    item_id      INTEGER REFERENCES items(id) ON DELETE CASCADE,
+    kind         TEXT NOT NULL CHECK (kind IN ('artifact', 'doc', 'file', 'url')),
+    target       TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    use          TEXT NOT NULL,
+    key          INTEGER NOT NULL DEFAULT 0 CHECK (key IN (0, 1)),
+    position     REAL NOT NULL,
+    created_at   TEXT NOT NULL,
+    CHECK ((portfolio_id IS NOT NULL) + (project_id IS NOT NULL) + (item_id IS NOT NULL) = 1)
+  ) STRICT;
+  CREATE UNIQUE INDEX refs_portfolio ON refs (portfolio_id, kind, target) WHERE portfolio_id IS NOT NULL;
+  CREATE UNIQUE INDEX refs_project ON refs (project_id, kind, target) WHERE project_id IS NOT NULL;
+  CREATE UNIQUE INDEX refs_item ON refs (item_id, kind, target) WHERE item_id IS NOT NULL;
+
+  INSERT INTO refs (item_id, kind, target, title, use, key, position, created_at)
+    SELECT l.item_id, 'artifact', l.value, CASE WHEN l.label = '' THEN l.value ELSE l.label END,
+           'Design or mockup for this work', CASE i.kind WHEN 'epic' THEN 1 ELSE 0 END, l.position, l.created_at
+      FROM links l JOIN items i ON i.id = l.item_id
+     WHERE l.kind = 'artifact';
+  DELETE FROM links WHERE kind = 'artifact';
   `
 ]

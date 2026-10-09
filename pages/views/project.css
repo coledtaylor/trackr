@@ -341,6 +341,39 @@
   display: none;
 }
 
+/* References: a group like a status's, its rows those of the item pages'
+ * card, the icons under the head's book. */
+
+.pj-refs-icon {
+  display: flex;
+  color: var(--helm-fg-muted);
+}
+
+.pj-refs-body {
+  padding: 4px 8px 6px 27px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--helm-border);
+}
+
+.pj-refs-body > .it-none {
+  padding: 6px 4px;
+}
+
+.pj-refs-body > .it-add-row {
+  margin-top: 0;
+}
+
+.pj-refs-body > .it-link-form {
+  max-width: 520px;
+  padding-top: 4px;
+}
+
+.pj-board .pj-refs {
+  margin-bottom: 14px;
+}
+
 /* Board */
 
 .pj-board {
@@ -458,6 +491,10 @@
 
   .pj-quick {
     padding-left: 14px;
+  }
+
+  .pj-refs-body {
+    padding-left: 8px;
   }
 }
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { doneThisWeek, epicsOf, openSeries } from '../service/overview.mjs'
+import { MIGRATIONS } from '../service/schema.mjs'
 import { WorkStore } from '../service/store.mjs'
 import { tempDir } from './helpers.mjs'
 
@@ -206,13 +207,14 @@ describe('status history', () => {
         DROP TRIGGER status_history_insert;
         DROP TRIGGER status_history_update;
         DROP TABLE status_history;
+        DROP TABLE refs;
         PRAGMA user_version = 1;`)
       first.store.close()
 
       const second = clockStore(file)
       second.set(14, 15)
       const overview = second.store.portfolioOverview('TC')
-      assert.equal(second.store.schemaVersion, 2)
+      assert.equal(second.store.schemaVersion, MIGRATIONS.length)
       assert.deepEqual(overview.stats.done.days, [0, 1, 0, 0, 0, 0, 0])
       assert.deepEqual(overview.stats.open.series.slice(0, 3), [0, 2, 2])
       assert.equal(overview.stats.open.series.at(-1), 1)

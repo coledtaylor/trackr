@@ -1,7 +1,7 @@
 /// <reference types="@coledtaylor/helm-plugin-sdk/global" />
 /**
  * An epic: its progress in each project, its tasks in a box per project, the
- * order they can be done in, and its artifacts and links. The v2 board's epic page; the
+ * order they can be done in, and its references and links. The v2 board's epic page; the
  * title, description, fields and links are edited in place, and tasks are
  * added in any project of the portfolio.
  */
@@ -9,7 +9,8 @@
 import { ICONS, colourVar, el, lineIcon, priorityGlyph, sessionChip, statusIcon, swatch, tile, tint, toast, waitsMark } from '../shared/dom.js'
 import { age, epicGroups, priorityMark } from '../shared/logic.js'
 import { openItem, openPortfolio, openProject } from '../shared/work.js'
-import { artifactsCard, button, chip, descriptionSection, editorActions, lineField, linksCard, priorityChip, propertiesCard, propertySelect, stamp, statusChip, titleBlock } from './edit.js'
+import { button, chip, descriptionSection, editorActions, lineField, linksCard, priorityChip, propertiesCard, propertySelect, stamp, statusChip, titleBlock } from './edit.js'
+import { referencesCard } from './references.js'
 
 /**
  * @typedef {import('../shared/types.js').ItemOverview} ItemOverview
@@ -39,7 +40,7 @@ export function epicParts(data, editing) {
       el('aside', { class: 'it-aside' }, [
         propertiesCard(editing, data),
         tasks.length > 0 ? orderCard(data) : null,
-        artifactsCard(editing, item),
+        referencesCard(editing, { level: 'epic', uid: item.uid, refs: item.refs, inherited: data.inherited, missing: data.missing }),
         linksCard(editing, item),
         el('span', { class: 'it-grow' }),
         stamp(editing, item)

@@ -1,6 +1,6 @@
 /**
- * The vocabulary of the model: status groups, colours, icons, link kinds and
- * the defaults a new portfolio starts with. Kept apart from the store so the
+ * The vocabulary of the model: status groups, colours, icons, link and
+ * reference kinds and the defaults a new portfolio starts with. Kept apart from the store so the
  * pages can share it once they are built.
  */
 
@@ -52,15 +52,32 @@ export const STATUS_ICONS = /** @type {const} */ ([
 /** The icon a new status gets when none is chosen. */
 export const DEFAULT_ICON_FOR_GROUP = { 'not-started': 'todo', active: 'doing', done: 'done', closed: 'cancelled' }
 
-/** What a link points at. */
-export const LINK_KINDS = /** @type {const} */ (['branch', 'pr', 'commit', 'file', 'artifact', 'url'])
+/** What a link points at: something the work produced. */
+export const LINK_KINDS = /** @type {const} */ (['branch', 'pr', 'commit', 'file', 'url'])
+
+/**
+ * What a reference points at: something the work follows, which an agent
+ * reads with its own tools when the reference's `use` line says to.
+ *
+ * - `artifact`: a claude.ai artifact (the Artifact tool).
+ * - `doc`: a Notion page, a Google Doc and the like (their connectors).
+ * - `file`: a local path (Read).
+ * - `url`: any other web address (WebFetch).
+ */
+export const REF_KINDS = /** @type {const} */ (['artifact', 'doc', 'file', 'url'])
+
+/**
+ * How many inherited references a task's get lists before the rest of each
+ * level collapse into one "+N more" line. Every line is read on every get.
+ */
+export const INHERITED_REF_LINES = 10
 
 /** The path of a claude.ai artifact page: /artifact/{id} or /code/artifact/{uuid}. */
 const ARTIFACT_PATH = /^\/(?:code\/)?artifact\/[A-Za-z0-9_-]+\/?$/
 
 /**
  * Whether an address is a claude.ai artifact, the kind of page an `artifact`
- * link points at: a mockup, a design document. Agents read these with their
+ * reference points at: a mockup, a design document. Agents read these with their
  * Artifact tool, which takes only claude.ai artifact links.
  *
  * @param {string} value
@@ -73,6 +90,46 @@ export function isArtifactAddress(value) {
     return false
   }
   return url.protocol === 'https:' && url.hostname === 'claude.ai' && url.username === '' && url.password === '' && ARTIFACT_PATH.test(url.pathname)
+}
+
+/**
+ * Whether a value is a web address: what a `doc` or `url` reference points at.
+ *
+ * @param {string} value
+ */
+export function isWebAddress(value) {
+  try {
+    const url = new URL(value.trim())
+    return url.protocol === 'https:' || url.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Hosts whose pages are documents with a connector of their own: Notion,
+ * Google Docs and Drive, Coda, Quip, SharePoint and OneDrive. Their subdomains
+ * count too.
+ */
+const DOC_HOSTS = ['notion.so', 'notion.site', 'docs.google.com', 'drive.google.com', 'coda.io', 'quip.com', 'sharepoint.com', 'onedrive.live.com']
+
+/**
+ * The kind of reference a target is when none is given: a claude.ai artifact,
+ * a document on a docs host (or a Confluence page), any other web address, and
+ * anything else a file.
+ *
+ * @param {string} target
+ * @returns {typeof REF_KINDS[number]}
+ */
+export function inferRefKind(target) {
+  const text = target.trim()
+  if (isArtifactAddress(text)) return 'artifact'
+  if (!isWebAddress(text)) return 'file'
+  const url = new URL(text)
+  const host = url.hostname.toLowerCase()
+  if (DOC_HOSTS.some((doc) => host === doc || host.endsWith(`.${doc}`))) return 'doc'
+  if (host.endsWith('.atlassian.net') && url.pathname.startsWith('/wiki/')) return 'doc'
+  return 'url'
 }
 
 export const ITEM_KINDS = /** @type {const} */ (['epic', 'task'])
@@ -114,6 +171,8 @@ export const LIMITS = {
   handoffField: 20_000,
   log: 4_000,
   linkValue: 2_000,
+  refTitle: 300,
+  refUse: 500,
   sessionName: 200,
   folders: 50
 }

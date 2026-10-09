@@ -113,23 +113,41 @@ describe('editItem', () => {
     assert.equal(store.getItem(task.id).log.entries[1].text, 'Just a note')
   })
 
-  test("artifacts are logged apart from links, and a task carries its epic's", () => {
+  test("references are logged apart from links, and a task inherits its epic's key ones", () => {
     const store = tidecast()
     const epic = store.createItem({ kind: 'epic', project: 'Desktop', title: 'Epic' })
     const task = store.createItem({ project: 'Desktop', title: 'Task', epic: epic.id })
-    store.editItem(epic.id, { links: { add: [{ kind: 'artifact', value: 'https://claude.ai/artifact/m1', label: 'Mockup' }] } }, 'You')
-    store.editItem(task.id, { links: { add: [{ kind: 'branch', value: 'feat/x' }, { kind: 'artifact', value: 'https://claude.ai/artifact/m2' }] } }, 'You')
+    const use = 'Read when building the UI'
+    const mockup = { kind: 'artifact', target: 'https://claude.ai/artifact/m1', title: 'Mockup', use, key: true }
+    store.editItem(epic.id, { refs: { add: [mockup, { ...mockup, target: 'https://claude.ai/artifact/m3', key: false }] } }, 'You')
+    store.editItem(
+      task.id,
+      {
+        links: { add: [{ kind: 'branch', value: 'feat/x' }] },
+        refs: { add: [{ kind: 'artifact', target: 'https://claude.ai/artifact/m2', use }, { kind: 'doc', target: 'https://notion.so/spec', use }] }
+      },
+      'You'
+    )
     const item = store.getItem(task.id)
-    assert.deepEqual(item.epicArtifacts.map((link) => [link.value, link.label]), [['https://claude.ai/artifact/m1', 'Mockup']])
-    assert.deepEqual(store.getItem(epic.id).epicArtifacts, [])
-    store.editItem(task.id, { links: { remove: item.links.map((link) => link.uid) } }, 'You')
+    assert.deepEqual(store.itemOverview(task.id).inherited.map((ref) => [ref.target, ref.title, ref.from.name]), [['https://claude.ai/artifact/m1', 'Mockup', epic.id]])
+    assert.deepEqual(item.refs.map((ref) => ref.kind), ['artifact', 'doc'])
+    assert.deepEqual(store.itemOverview(epic.id).inherited, [])
+    const [mockup2, spec] = item.refs
+    store.editItem(task.id, { refs: { edit: [{ uid: mockup2.uid, title: 'Mockup 2' }, { uid: spec.uid, use }] } }, 'You')
+    assert.deepEqual(store.getItem(task.id).refs.map((ref) => ref.title), ['Mockup 2', 'https://notion.so/spec'])
+    store.editItem(task.id, { links: { remove: item.links.map((link) => link.uid) }, refs: { remove: item.refs.map((ref) => ref.uid) } }, 'You')
     assert.deepEqual(
       store.getItem(task.id).log.entries.map((entry) => entry.text),
-      ['link +1 · artifact +1', 'link -1 · artifact -1']
+      ['link +1 · ref +2', 'ref edited 1', 'link -1 · ref -2'],
+      'an edit that changes nothing is not counted'
     )
-    assert.throws(() => store.editItem(task.id, { links: { add: [{ kind: 'artifact', value: 'https://example.com' }] } }, 'You'), {
+    assert.throws(() => store.editItem(task.id, { refs: { add: [{ kind: 'artifact', target: 'https://example.com', use }] } }, 'You'), {
       code: 'invalid',
       message: "https://example.com is not a claude.ai artifact. An artifact's address is like https://claude.ai/artifact/… or https://claude.ai/code/artifact/…."
+    })
+    assert.throws(() => store.editItem(task.id, { links: { add: [{ kind: 'artifact', value: 'https://claude.ai/artifact/m2' }] } }, 'You'), {
+      code: 'invalid',
+      message: "A link's kind is one of branch, pr, commit, file, url."
     })
   })
 

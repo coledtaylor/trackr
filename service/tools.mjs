@@ -1,9 +1,10 @@
 import { homedir } from 'node:os'
-import { isAbsolute, resolve } from 'node:path'
-import { SEP, changeParts, linkParts } from './changes.mjs'
+import { isAbsolute, join, resolve } from 'node:path'
+import { SEP, changeParts, linkParts, refParts } from './changes.mjs'
 import { WorkError, invalid, notFound } from './errors.mjs'
-import { displayFolder } from './folders.mjs'
-import { ITEM_ID, LINK_KINDS, OPEN_GROUPS, PROJECT_COLOURS, isArtifactAddress } from './model.mjs'
+import { absoluteFolder, displayFolder, normalFolder, pathState } from './folders.mjs'
+import { INHERITED_REF_LINES, ITEM_ID, LINK_KINDS, OPEN_GROUPS, PORTFOLIO_KEY, PROJECT_COLOURS, REF_KINDS, inferRefKind, isArtifactAddress, isWebAddress } from './model.mjs'
+import { unshadowed } from './overview.mjs'
 
 /**
  * The four tools Claude Code sessions call: find, get, create and update.
@@ -21,8 +22,19 @@ import { ITEM_ID, LINK_KINDS, OPEN_GROUPS, PROJECT_COLOURS, isArtifactAddress } 
 /** @typedef {import('./store.mjs').WorkStore} WorkStore */
 /** @typedef {import('./store.mjs').ItemSummary} ItemSummary */
 /** @typedef {import('./store.mjs').Item} Item */
+/** @typedef {import('./store.mjs').Project} Project */
+/** @typedef {import('./store.mjs').Portfolio} Portfolio */
+/** @typedef {import('./store.mjs').Counts} Counts */
+/** @typedef {import('./store.mjs').Reference} Reference */
+/** @typedef {import('./store.mjs').InheritedReference} InheritedReference */
+/** @typedef {import('./store.mjs').RefKind} RefKind */
+/** @typedef {import('./store.mjs').RefOwner} RefOwner */
+/** @typedef {import('./folders.mjs').PathState} PathState */
+/** @typedef {{ kind: RefKind, target: string, title?: string, use?: string, key?: boolean }} ReferenceInput */
+/** @typedef {{ cwd: string, home: string }} Paths where a file written as `~/…` or relative is read from */
+/** @typedef {{ level: 'item', id: string } | { level: 'portfolio', portfolio: Portfolio } | { level: 'project', project: Project }} Named */
 /** @typedef {{ id: string, name: string, cwd: string }} Session */
-/** @typedef {{ now?: () => Date, timeZone?: string, home?: string }} Format */
+/** @typedef {{ now?: () => Date, timeZone?: string, home?: string, pathState?: (path: string) => PathState }} Format */
 
 export const TOOL_NAMES = /** @type {const} */ (['find', 'get', 'create', 'update'])
 
@@ -73,6 +85,7 @@ class Context {
     this.now = format.now ?? (() => new Date())
     this.timeZone = format.timeZone
     this.home = format.home ?? homedir()
+    this.pathState = format.pathState ?? pathState
     /** @type {ReturnType<WorkStore['resolveFolder']> | undefined} */
     this.hereCache = undefined
     /** @type {Map<number, { name: string, folders: string[], portfolio: { key: string, name: string } }> | null} */
@@ -126,6 +139,36 @@ class Context {
       }
     }
     return this.store.getProject(text)
+  }
+
+  /**
+   * What get and update are given to work on: an item by its ID (TC-123), a
+   * portfolio by its key (TC), or a project as `projectNamed` takes one. A
+   * key wins over a project with the same name, which KEY/Name still reaches.
+   *
+   * @param {string} text
+   * @returns {Named}
+   */
+  named(text) {
+    if (ITEM_ID.test(text)) return { level: 'item', id: text }
+    if (PORTFOLIO_KEY.test(text)) {
+      try {
+        return { level: 'portfolio', portfolio: this.store.getPortfolio(text) }
+      } catch (error) {
+        if (!(error instanceof WorkError && error.code === 'not-found')) throw error
+      }
+    }
+    try {
+      return { level: 'project', project: this.projectNamed(text) }
+    } catch (error) {
+      if (!(error instanceof WorkError && error.code === 'not-found')) throw error
+      throw notFound(`There is no item, portfolio or project ${text}. Name an item by its ID (TC-123), a portfolio by its key (TC) or a project by its name (Desktop, or TC/Desktop).`)
+    }
+  }
+
+  /** Where this session reads a file written as `~/…` or relative from. @returns {Paths} */
+  paths() {
+    return { cwd: this.session.cwd, home: this.home }
   }
 
   /**
@@ -271,18 +314,31 @@ function itemLine(context, item, show) {
 // get
 
 /**
+ * Items, portfolios and projects, a block each: an item in full, a portfolio
+ * or project as a short summary and its references.
+ *
  * @param {Context} context
  * @param {Record<string, unknown>} args
  */
 function get(context, args) {
   only(args, ['ids', 'log'], 'get')
   const ids = Array.isArray(args.ids) ? args.ids : args.ids === undefined ? [] : [args.ids]
-  if (ids.length === 0 || ids.some((id) => typeof id !== 'string')) throw invalid('ids is a list of IDs, like ["TC-123"].')
+  if (ids.length === 0 || ids.some((id) => typeof id !== 'string' || id.trim() === '')) {
+    throw invalid('ids is a list of IDs, portfolio keys or project names, like ["TC-123"].')
+  }
   if (ids.length > MAX_BATCH) throw invalid(`get takes ${MAX_BATCH} IDs at most.`)
   const logLimit = intArg(args.log, 'log', 0, 1000) ?? LOG_DEFAULT
   const blocks = ids.map((id) => {
     try {
-      return detail(context, context.store.getItem(/** @type {string} */ (id), { logLimit }))
+      const named = context.named(/** @type {string} */ (id).trim())
+      switch (named.level) {
+        case 'item':
+          return detail(context, context.store.getItem(named.id, { logLimit }))
+        case 'project':
+          return projectDetail(context, named.project)
+        case 'portfolio':
+          return portfolioDetail(context, named.portfolio)
+      }
     } catch (error) {
       // One ID among several that does not exist is a line, not a failed call.
       if (ids.length > 1 && error instanceof Error && 'code' in error) return error.message
@@ -311,19 +367,10 @@ function detail(context, item) {
     list.map((other) => `${other.id} ${other.status.name} (${context.project(other.project.uid).name})`).join(', ')
   if (item.waitsOn.length > 0) lines.push(`waits on: ${related(item.waitsOn)}`)
   if (item.blocks.length > 0) lines.push(`blocks: ${related(item.blocks)}`)
-  const links = item.links.filter((link) => link.kind !== 'artifact')
-  if (links.length > 0) lines.push(`links: ${links.map(linkText).join(SEP)}`)
+  if (item.links.length > 0) lines.push(`links: ${item.links.map(linkText).join(SEP)}`)
 
   if (item.description) lines.push('', '## Description', item.description)
-  const own = item.links.filter((link) => link.kind === 'artifact')
-  const artifacts = [
-    ...own.map((link) => artifactLine(link, null)),
-    ...item.epicArtifacts.filter((link) => !own.some((mine) => mine.value === link.value)).map((link) => artifactLine(link, item.epic?.id ?? null))
-  ]
-  if (artifacts.length > 0) {
-    lines.push('', '## Artifacts', 'Mockups and design documents for this work. Read one with the Artifact tool (action read) when the work touches it.')
-    lines.push(...artifacts)
-  }
+  lines.push(...referencesSection(context, item.refs, context.store.inheritedRefs(item.uid)))
   if (item.tasks && item.tasks.length > 0) {
     lines.push('', '## Tasks')
     /** @type {Map<string, ItemSummary[]>} */
@@ -369,22 +416,175 @@ function linkText(link) {
 }
 
 /**
- * Settings page mockup · https://claude.ai/artifact/abc · from epic TC-118
+ * A portfolio: its projects, the open work in them, its description and its
+ * references.
  *
- * @param {{ value: string, label: string }} link
- * @param {string | null} epic the epic it comes from, when it is not the item's own
+ * TC TideCast
+ * portfolio · projects Desktop, Reporting API · 3 open tasks, 1 active
+ *
+ * @param {Context} context
+ * @param {Portfolio} portfolio
  */
-function artifactLine(link, epic) {
-  return [link.label, link.value, epic ? `from epic ${epic}` : ''].filter(Boolean).join(SEP)
+function portfolioDetail(context, portfolio) {
+  const lines = [`${portfolio.key} ${portfolio.name}`]
+  const projects = portfolio.projects.length > 0 ? `projects ${portfolio.projects.map((project) => project.name).join(', ')}` : 'no projects'
+  lines.push(['portfolio', projects, openWork(portfolio.projects.map((project) => project.counts))].join(SEP))
+  if (portfolio.description) lines.push('', '## Description', portfolio.description)
+  lines.push(...referencesSection(context, context.store.listRefs({ portfolio: portfolio.uid }), []))
+  return lines.join('\n')
+}
+
+/**
+ * A project: its portfolio, its folders, the open work in it and its
+ * references.
+ *
+ * TC/Desktop
+ * project · portfolio TC TideCast · ~/code/tidecast · 3 open tasks, 1 active
+ *
+ * @param {Context} context
+ * @param {Project} project
+ */
+function projectDetail(context, project) {
+  const lines = [`${project.portfolio.key}/${project.name}`]
+  const folders = project.folders.length > 0 ? project.folders.map((folder) => context.folder(folder)).join(', ') : 'no folders'
+  lines.push(['project', `portfolio ${project.portfolio.key} ${project.portfolio.name}`, folders, openWork([project.counts])].join(SEP))
+  lines.push(...referencesSection(context, context.store.listRefs({ project: project.uid }), []))
+  return lines.join('\n')
+}
+
+/**
+ * "3 open tasks, 1 active"
+ *
+ * @param {Counts[]} counts
+ */
+function openWork(counts) {
+  const open = counts.reduce((sum, count) => sum + count.open, 0)
+  const active = counts.reduce((sum, count) => sum + count.active, 0)
+  return `${open} open task${open === 1 ? '' : 's'}${active > 0 ? `, ${active} active` : ''}`
+}
+
+/**
+ * The tool that opens each kind of reference, as the hint under the list
+ * names it.
+ *
+ * @type {Record<RefKind, string>}
+ */
+const REF_TOOLS = { artifact: 'artifacts with the Artifact tool', doc: 'docs with their connector', file: 'files with Read', url: 'URLs with WebFetch' }
+
+/**
+ * The references part of get: the owner's own, then the key references it
+ * inherits, nearest level first, each saying where it comes from. A target
+ * shows once, at the nearest level that holds it. Past INHERITED_REF_LINES
+ * inherited lines, the rest of each level is one "+N more" line naming the
+ * get that lists them. A hint naming the tool for each kind shown closes it.
+ * Nothing when there are none.
+ *
+ * ## References
+ * artifact Banner mockup · https://claude.ai/artifact/abc · Read when building the banner
+ * file /code/app/docs/sync.md · Read when changing sync · from epic TC-118 · missing
+ * +4 more on project Desktop (get Desktop)
+ * Read the ones whose use fits the work: artifacts with the Artifact tool, files with Read.
+ *
+ * @param {Context} context
+ * @param {Reference[]} own
+ * @param {InheritedReference[]} inherited in the order inheritedRefs gives them: epic, project, portfolio
+ * @returns {string[]} lines, the first one blank
+ */
+function referencesSection(context, own, inherited) {
+  const nearest = unshadowed(own, inherited)
+  if (own.length + nearest.length === 0) return []
+  const shown = nearest.slice(0, INHERITED_REF_LINES)
+  const kinds = new Set([...own, ...shown].map((reference) => reference.kind))
+  return [
+    '',
+    '## References',
+    ...own.map((reference) => referenceLine(context, reference, null)),
+    ...shown.map((reference) => referenceLine(context, reference, reference.from)),
+    ...moreLines(context, nearest.slice(INHERITED_REF_LINES)),
+    `Read the ones whose use fits the work: ${REF_KINDS.filter((kind) => kinds.has(kind)).map((kind) => REF_TOOLS[kind]).join(', ')}.`
+  ]
+}
+
+/**
+ * "+4 more on project Desktop (get Desktop)": one line per level for the
+ * inherited references past the cap.
+ *
+ * @param {Context} context
+ * @param {InheritedReference[]} hidden
+ */
+function moreLines(context, hidden) {
+  /** @type {Map<string, { from: InheritedReference['from'], count: number }>} */
+  const levels = new Map()
+  for (const { from } of hidden) {
+    const key = `${from.level} ${from.uid}`
+    const level = levels.get(key) ?? { from, count: 0 }
+    level.count += 1
+    levels.set(key, level)
+  }
+  return [...levels.values()].map(({ from, count }) => `+${count} more on ${from.level} ${from.name} (get ${getName(context, from)})`)
+}
+
+/**
+ * What get takes to show a level's references: an epic's ID, a portfolio's
+ * key, a project's name, or KEY/Name when the bare name would reach
+ * something else from this session.
+ *
+ * @param {Context} context
+ * @param {InheritedReference['from']} from
+ */
+function getName(context, from) {
+  if (from.level !== 'project') return from.name
+  try {
+    const named = context.named(from.name)
+    if (named.level === 'project' && named.project.uid === from.uid) return from.name
+  } catch (error) {
+    if (!(error instanceof WorkError)) throw error
+  }
+  return `${context.project(from.uid).portfolio.key}/${from.name}`
+}
+
+/**
+ * artifact Settings mockup · https://claude.ai/artifact/abc · Read when building the page · key
+ * doc https://www.notion.so/sync-design · Read when changing sync · from epic TC-118
+ * file /code/app/docs/sync.md · Read when changing sync · missing
+ *
+ * The title is left out when it only repeats the target, as a file's does
+ * when it was added without one. `key` marks one that shows on everything
+ * under its owner; `missing`, a file that is no longer there.
+ *
+ * @param {Context} context
+ * @param {Reference} reference
+ * @param {InheritedReference['from'] | null} from where it comes from, when it is not the owner's own
+ */
+function referenceLine(context, reference, from) {
+  const named = repeatsTarget(reference) ? [`${reference.kind} ${reference.target}`] : [`${reference.kind} ${reference.title}`, reference.target]
+  const parts = [...named, reference.use]
+  if (from) parts.push(`from ${from.level} ${from.name}`)
+  else if (reference.key) parts.push('key')
+  if (reference.kind === 'file' && isAbsolute(reference.target) && context.pathState(reference.target) === 'missing') parts.push('missing')
+  return parts.join(SEP)
+}
+
+/**
+ * Whether a reference's title says no more than its target: the same text,
+ * or for a file the path relative to its project folder that it was stored as.
+ *
+ * @param {Reference} reference
+ */
+function repeatsTarget(reference) {
+  if (reference.title === reference.target) return true
+  if (reference.kind !== 'file' || isAbsolute(reference.title)) return false
+  const slashed = (/** @type {string} */ path) => path.replace(/\\/g, '/')
+  return slashed(reference.target).endsWith(`/${slashed(reference.title)}`)
 }
 
 // -----------------------------------------------------------------------------
 // create
 
 const CREATE_KINDS = /** @type {const} */ (['task', 'epic', 'project', 'portfolio'])
-const CREATE_FIELDS = ['ref', 'kind', 'project', 'epic', 'title', 'description', 'status', 'priority', 'ac', 'waitsOn', 'links', 'artifacts']
-const PORTFOLIO_FIELDS = ['kind', 'key', 'name', 'description']
-const PROJECT_FIELDS = ['kind', 'portfolio', 'name', 'colour', 'folders']
+const CREATE_FIELDS = ['ref', 'kind', 'project', 'epic', 'title', 'description', 'status', 'priority', 'ac', 'waitsOn', 'links', 'references']
+const PORTFOLIO_FIELDS = ['kind', 'key', 'name', 'description', 'references']
+const PROJECT_FIELDS = ['kind', 'portfolio', 'name', 'colour', 'folders', 'references']
 
 /** @typedef {{ input: Record<string, unknown>, where: string }} CreateInput */
 
@@ -443,6 +643,7 @@ function createKind(value, where) {
  */
 function createPortfolio(context, { input, where }) {
   only(input, PORTFOLIO_FIELDS, where)
+  const references = referencesFor(context, input.references, `${where}.references`)
   const portfolio = refusedAt(where, () =>
     context.store.createPortfolio({
       key: stringArg(input.key, `${where}.key`),
@@ -450,6 +651,7 @@ function createPortfolio(context, { input, where }) {
       description: input.description === undefined ? undefined : textArg(input.description, `${where}.description`)
     })
   )
+  addReferences(context.store, { portfolio: portfolio.uid }, references, `${where}.references`)
   return [
     `${portfolio.key} portfolio ${portfolio.name}`,
     `statuses ${portfolio.statuses.map((status) => status.name).join(', ')}`,
@@ -475,7 +677,9 @@ function createProject(context, { input, where }) {
     if (!PROJECT_COLOURS.includes(/** @type {any} */ (colour))) throw invalid(`${where}.colour is one of ${PROJECT_COLOURS.join(', ')}.`)
   }
   const folders = input.folders === undefined ? undefined : stringList(input.folders, `${where}.folders`).map((folder) => folderFor(context, folder))
+  const references = referencesFor(context, input.references, `${where}.references`)
   const project = refusedAt(where, () => context.store.createProject({ portfolio, name, colour, folders }))
+  addReferences(context.store, { project: project.uid }, references, `${where}.references`)
   const place = project.folders.length > 0 ? project.folders.map((folder) => context.folder(folder)).join(', ') : 'no folders: no session lands in it until it has one'
   return `project ${project.portfolio.key}/${project.name}${SEP}${place}`
 }
@@ -530,6 +734,7 @@ function createItems(context, inputs) {
       if (refs.has(ref)) throw invalid(`The ref ${ref} is used twice.`)
     }
     const project = projectFor(context, input, refs, where)
+    const references = referencesFor(context, input.references, `${where}.references`)
     const item = store.createItem({
       kind: /** @type {any} */ (input.kind),
       project,
@@ -538,12 +743,10 @@ function createItems(context, inputs) {
       status: /** @type {string | undefined} */ (input.status),
       priority: /** @type {string | undefined} */ (input.priority),
       criteria: input.ac === undefined ? undefined : stringList(input.ac, `${where}.ac`),
-      links: [
-        ...(input.links === undefined ? [] : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`))),
-        ...(input.artifacts === undefined ? [] : listArg(input.artifacts, `${where}.artifacts`).map((link) => parseArtifact(link, `${where}.artifacts`)))
-      ],
+      links: input.links === undefined ? undefined : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`)),
       by: session.name
     })
+    addReferences(store, { item: item.uid }, references, `${where}.references`)
     if (ref !== null) refs.set(ref, item.uid)
     made.push({ input, where, uid: item.uid })
   }
@@ -615,12 +818,14 @@ function createReply(context, items) {
 // -----------------------------------------------------------------------------
 // update
 
-const UPDATE_FIELDS = ['id', 'title', 'description', 'status', 'priority', 'project', 'epic', 'ac', 'handoff', 'log', 'links', 'artifacts', 'waitsOn']
+const UPDATE_FIELDS = ['id', 'title', 'description', 'status', 'priority', 'project', 'epic', 'ac', 'handoff', 'log', 'links', 'references', 'waitsOn']
+const OWNER_UPDATE_FIELDS = ['id', 'references']
 
 /**
  * Several items in one call: fields, criteria, handoff, a log line, links,
- * artifacts, dependencies. One line per item, then what became ready. All of it lands or
- * none of it does.
+ * references, dependencies; and the references of portfolios and projects.
+ * One line per item, then what became ready. All of it lands or none of it
+ * does.
  *
  * @param {Context} context
  * @param {Record<string, unknown>} args
@@ -662,9 +867,10 @@ function update(context, args) {
  */
 function updateOne(context, input, where) {
   const { store, session } = context
-  const id = stringArg(input.id, `${where}.id`)
-  only(input, UPDATE_FIELDS, id)
-  const before = store.getItem(id, { logLimit: 0 })
+  const named = context.named(stringArg(input.id, `${where}.id`))
+  if (named.level !== 'item') return updateOwner(context, input, named)
+  only(input, UPDATE_FIELDS, named.id)
+  const before = store.getItem(named.id, { logLimit: 0 })
   where = before.id
 
   const { changes } = store.updateItem(before.uid, {
@@ -714,22 +920,20 @@ function updateOne(context, input, where) {
   const linksAdded = []
   /** @type {{ kind: string }[]} */
   const linksRemoved = []
-  for (const field of /** @type {const} */ (['links', 'artifacts'])) {
-    if (input[field] === undefined) continue
-    const ops = objectArg(input[field], `${where}.${field}`)
-    only(ops, ['add', 'remove'], `${where}.${field}`)
-    const parse = field === 'links' ? parseLink : parseArtifact
-    for (const value of ops.add === undefined ? [] : listArg(ops.add, `${where}.${field}.add`)) {
-      linksAdded.push(store.addLink(before.uid, parse(value, `${where}.${field}.add`)))
+  if (input.links !== undefined) {
+    const ops = objectArg(input.links, `${where}.links`)
+    only(ops, ['add', 'remove'], `${where}.links`)
+    for (const value of ops.add === undefined ? [] : listArg(ops.add, `${where}.links.add`)) {
+      linksAdded.push(store.addLink(before.uid, parseLink(value, `${where}.links.add`)))
     }
-    for (const value of ops.remove === undefined ? [] : listArg(ops.remove, `${where}.${field}.remove`)) {
-      const link =
-        field === 'links' ? findLink(store, before.uid, value, `${where}.links.remove`) : findArtifact(store, before.uid, value, `${where}.artifacts.remove`)
+    for (const value of ops.remove === undefined ? [] : listArg(ops.remove, `${where}.links.remove`)) {
+      const link = findLink(store, before.uid, value, `${where}.links.remove`)
       store.removeLink(before.uid, link.uid)
       linksRemoved.push(link)
     }
   }
   parts.push(...linkParts(linksAdded, linksRemoved))
+  if (input.references !== undefined) parts.push(...applyReferences(context, { item: before.uid }, input.references, `${where}.references`))
 
   if (input.waitsOn !== undefined) {
     const waits = objectArg(input.waitsOn, `${where}.waitsOn`)
@@ -766,6 +970,24 @@ function updateOne(context, input, where) {
 }
 
 /**
+ * A portfolio or project in an update: it takes references and nothing else.
+ * It has no log, so the reply line is the only record of the change.
+ *
+ * @param {Context} context
+ * @param {Record<string, unknown>} input
+ * @param {Exclude<Named, { level: 'item' }>} named
+ * @returns {{ line: string, note: null, ready: ItemSummary[] }}
+ */
+function updateOwner(context, input, named) {
+  const label = named.level === 'portfolio' ? named.portfolio.key : `${named.project.portfolio.key}/${named.project.name}`
+  only(input, OWNER_UPDATE_FIELDS, `${label} is a ${named.level} and`)
+  /** @type {RefOwner} */
+  const owner = named.level === 'portfolio' ? { portfolio: named.portfolio.uid } : { project: named.project.uid }
+  const parts = input.references === undefined ? [] : applyReferences(context, owner, input.references, `${label}.references`)
+  return { line: parts.length > 0 ? `${label} ${parts.join(SEP)}` : `${label} unchanged`, note: null, ready: [] }
+}
+
+/**
  * Criteria operations, every number meaning the list as it was before the
  * call: edit, check and uncheck in place, remove, then add at the end.
  *
@@ -796,7 +1018,8 @@ function applyCriteria(store, uid, value, where) {
 /**
  * A link as an agent writes one: `{ kind, value, label }`, or a string like
  * "commit b7f02c1", "branch feat/x", "PR #412", "file src/a.py", or a bare URL.
- * A bare claude.ai artifact address is an artifact.
+ * A claude.ai artifact is not a link but a reference, and is refused with a
+ * pointer there.
  *
  * @param {unknown} value
  * @param {string} where
@@ -806,22 +1029,41 @@ export function parseLink(value, where) {
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
     const link = /** @type {Record<string, unknown>} */ (value)
     only(link, ['kind', 'value', 'label'], where)
+    const kind = typeof link.kind === 'string' ? link.kind.trim().toLowerCase() : ''
+    if (kind === 'artifact') throw artifactLink(where, typeof link.value === 'string' ? link.value.trim() : '')
     return {
-      kind: typeof link.kind === 'string' ? link.kind.trim().toLowerCase() : '',
+      kind,
       value: typeof link.value === 'string' && link.kind === 'pr' ? link.value.replace(/^#/, '') : /** @type {string} */ (link.value),
       label: /** @type {string | undefined} */ (link.label)
     }
   }
   if (typeof value !== 'string' || value.trim() === '') throw invalid(`${where}: a link is a string like "branch feat/x" or {kind, value, label}.`)
   const text = value.trim()
-  if (/^https?:\/\/\S+$/i.test(text)) return { kind: isArtifactAddress(text) ? 'artifact' : 'url', value: text }
+  if (/^https?:\/\/\S+$/i.test(text)) {
+    if (isArtifactAddress(text)) throw artifactLink(where, text)
+    return { kind: 'url', value: text }
+  }
   const space = text.search(/\s/)
   const word = (space < 0 ? text : text.slice(0, space)).toLowerCase()
   const rest = space < 0 ? '' : text.slice(space).trim()
+  if (word === 'artifact') throw artifactLink(where, rest)
   if (!LINK_KINDS.includes(/** @type {any} */ (word)) || rest === '') {
     throw invalid(`${where}: "${text}" is not a link. Start it with one of ${LINK_KINDS.join(', ')}, or give a URL.`)
   }
   return { kind: word, value: word === 'pr' ? rest.replace(/^#/, '') : rest }
+}
+
+/**
+ * The refusal of an artifact given as a link: links are what the work
+ * produced, and an artifact is something it follows.
+ *
+ * @param {string} where
+ * @param {string} address
+ */
+function artifactLink(where, address) {
+  return invalid(
+    `${where}: ${address ? `${address} is a claude.ai artifact, which` : 'a claude.ai artifact is something'} the work follows rather than produces. Add it to references, with a use line saying when to read it.`
+  )
 }
 
 /**
@@ -853,45 +1095,248 @@ function findLink(store, uid, value, where) {
   return match[0]
 }
 
+// -----------------------------------------------------------------------------
+// References: what the work follows, on a portfolio, a project, an epic or a
+// task. Each says when to read it in its `use` line; the agent reads it with
+// its own tools.
+
+const REFERENCE_FIELDS = ['target', 'title', 'use', 'kind', 'key']
+const USE_EXAMPLE = 'a line saying when to read it, like "Read when changing the sync engine"'
+
 /**
- * An artifact as an agent writes one: its claude.ai address, or
- * `{ url, label }` where the label says what it is ("Settings page mockup").
+ * A reference as an agent writes one: `{ target, title, use, kind?, key? }`.
+ * The kind comes from the target when it is not given, and one that is given
+ * must fit it. A file may be written absolute, under `~` or relative to the
+ * session's folder; it comes back absolute. `use` may be missing here: a new
+ * reference needs one, and `requireUse` says so.
  *
  * @param {unknown} value
  * @param {string} where
- * @returns {{ kind: 'artifact', value: string, label?: string }}
+ * @param {Paths} paths
+ * @returns {ReferenceInput}
  */
-export function parseArtifact(value, where) {
-  /** @type {unknown} */
-  let url = value
-  /** @type {string | undefined} */
-  let label
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    const artifact = /** @type {Record<string, unknown>} */ (value)
-    only(artifact, ['url', 'label'], where)
-    url = artifact.url
-    label = artifact.label === undefined ? undefined : textArg(artifact.label, `${where}.label`).trim()
+export function parseReference(value, where, paths) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw invalid(`${where}: a reference is {target, title, use}, with kind and key when wanted.`)
   }
-  if (typeof url !== 'string' || !isArtifactAddress(url)) {
-    const shown = typeof url === 'string' ? `"${url.trim()}"` : 'that'
-    throw invalid(`${where}: ${shown} is not a claude.ai artifact. Give its address, like https://claude.ai/artifact/…, or {url, label}.`)
+  const reference = /** @type {Record<string, unknown>} */ (value)
+  only(reference, REFERENCE_FIELDS, where)
+  const written = stringArg(reference.target, `${where}.target`)
+  const kind = reference.kind === undefined ? inferRefKind(written) : refKindArg(reference.kind, `${where}.kind`)
+  return {
+    kind,
+    target: referenceTarget(kind, written, reference.kind !== undefined, where, paths),
+    ...referenceFields(reference, where)
   }
-  return { kind: 'artifact', value: url.trim(), label }
 }
 
 /**
- * The artifact to remove, by its address.
+ * The title, use and key of a reference, those given.
  *
- * @param {WorkStore} store
- * @param {number} uid
+ * @param {Record<string, unknown>} reference
+ * @param {string} where
+ * @returns {{ title?: string, use?: string, key?: boolean }}
+ */
+function referenceFields(reference, where) {
+  /** @type {{ title?: string, use?: string, key?: boolean }} */
+  const fields = {}
+  if (reference.title !== undefined) fields.title = textArg(reference.title, `${where}.title`).trim()
+  if (reference.use !== undefined) {
+    if (typeof reference.use !== 'string' || reference.use.trim() === '') throw invalid(`${where}.use must be ${USE_EXAMPLE}.`)
+    fields.use = reference.use.trim()
+  }
+  if (reference.key !== undefined) {
+    if (typeof reference.key !== 'boolean') throw invalid(`${where}.key is true or false: true shows it on everything under its owner.`)
+    fields.key = reference.key
+  }
+  return fields
+}
+
+/**
  * @param {unknown} value
  * @param {string} where
+ * @returns {RefKind}
  */
-function findArtifact(store, uid, value, where) {
-  const wanted = typeof value === 'string' ? value.trim() : ''
-  const link = store.getItem(uid, { logLimit: 0 }).links.find((candidate) => candidate.kind === 'artifact' && candidate.value === wanted)
-  if (link === undefined) throw notFound(`${where}: there is no artifact ${wanted || String(value)}.`)
-  return link
+function refKindArg(value, where) {
+  const kind = typeof value === 'string' ? value.trim().toLowerCase() : value
+  if (!REF_KINDS.includes(/** @type {any} */ (kind))) {
+    throw invalid(`${where} is ${REF_KINDS.join(', ').replace(/, (?=[^,]*$)/, ' or ')}, not ${JSON.stringify(value)}. Leave it out to have it worked out from the target.`)
+  }
+  return /** @type {RefKind} */ (kind)
+}
+
+/**
+ * A target checked against its kind: an artifact's claude.ai address, a doc's
+ * or url's web address, or a file as an absolute path.
+ *
+ * @param {RefKind} kind
+ * @param {string} target
+ * @param {boolean} given whether the kind was given rather than worked out
+ * @param {string} where
+ * @param {Paths} paths
+ */
+function referenceTarget(kind, target, given, where, paths) {
+  if (kind === 'artifact' && !isArtifactAddress(target)) {
+    throw invalid(`${where}.kind is artifact, but ${target} is not a claude.ai artifact, whose address is like https://claude.ai/artifact/…. Leave kind out to have it worked out from the target.`)
+  }
+  if ((kind === 'doc' || kind === 'url') && !isWebAddress(target)) {
+    throw invalid(`${where}.kind is ${kind}, but ${target} is not a web address. Leave kind out for a file.`)
+  }
+  if (kind !== 'file') return target
+  if (given && isWebAddress(target)) throw invalid(`${where}.kind is file, but ${target} is a web address. Leave kind out, or use url or doc.`)
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target)) throw invalid(`${where}.target: ${target} is not a web address or a file path.`)
+  const path = filePath(target, paths)
+  if (path === null) throw invalid(`${where}.target: ${target} is a relative path, and this session has no folder to read it from. Give the file's full path.`)
+  return path
+}
+
+/**
+ * A file as an agent writes it, as an absolute path: under `~`, relative to
+ * the session's folder, or already absolute. Null when it is relative and
+ * there is no folder.
+ *
+ * @param {string} written
+ * @param {Paths} paths
+ */
+function filePath(written, paths) {
+  let path = written
+  if (path === '~' || /^~[\\/]/.test(path)) path = join(paths.home, path.slice(1))
+  else if (!isAbsolute(path) && paths.cwd) path = resolve(paths.cwd, path)
+  return absoluteFolder(path)
+}
+
+/**
+ * @param {ReferenceInput} input
+ * @param {string} where
+ */
+function requireUse(input, where) {
+  if (input.use === undefined) throw invalid(`${where}.use is missing: a reference needs ${USE_EXAMPLE}.`)
+}
+
+/**
+ * The references of a create, checked before anything is made: each is new,
+ * so each needs its use line.
+ *
+ * @param {Context} context
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {ReferenceInput[]}
+ */
+function referencesFor(context, value, where) {
+  if (value === undefined) return []
+  return listArg(value, where).map((entry, index) => {
+    const input = parseReference(entry, `${where}[${index}]`, context.paths())
+    requireUse(input, `${where}[${index}]`)
+    return input
+  })
+}
+
+/**
+ * @param {WorkStore} store
+ * @param {RefOwner} owner
+ * @param {ReferenceInput[]} inputs
+ * @param {string} where
+ */
+function addReferences(store, owner, inputs, where) {
+  inputs.forEach((input, index) => refusedAt(`${where}[${index}]`, () => store.addRef(owner, input)))
+}
+
+/**
+ * Reference operations on one owner, in this order: `add` (a new reference,
+ * or new fields for one with the same kind and target), `set` (the title, use
+ * or key of one found by its target) and `remove` (by target). Adding one
+ * that is there already changes only the fields given.
+ *
+ * @param {Context} context
+ * @param {RefOwner} owner
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {string[]} the parts of the reply line: "ref +2", "ref edited 1"
+ */
+function applyReferences(context, owner, value, where) {
+  const { store } = context
+  const ops = objectArg(value, where)
+  only(ops, ['add', 'set', 'remove'], where)
+  /** @type {Reference[]} */
+  const added = []
+  /** @type {Reference[]} */
+  const edited = []
+  /** @type {Reference[]} */
+  const removed = []
+
+  /**
+   * @param {Reference | undefined} before
+   * @param {Reference} after
+   */
+  const record = (before, after) => {
+    if (before === undefined) added.push(after)
+    else if (before.title !== after.title || before.use !== after.use || before.key !== after.key) edited.push(after)
+  }
+
+  listArg(ops.add ?? [], `${where}.add`).forEach((entry, index) => {
+    const at = `${where}.add[${index}]`
+    const input = parseReference(entry, at, context.paths())
+    const before = store.listRefs(owner).find((reference) => reference.kind === input.kind && sameTarget(reference, input.target))
+    if (before === undefined) requireUse(input, at)
+    record(before, refusedAt(at, () => store.addRef(owner, input)))
+  })
+
+  listArg(ops.set ?? [], `${where}.set`).forEach((entry, index) => {
+    const at = `${where}.set[${index}]`
+    const change = objectArg(entry, at)
+    only(change, REFERENCE_FIELDS, at)
+    const before = findReference(context, owner, change, at)
+    const fields = referenceFields(change, at)
+    if (Object.keys(fields).length === 0) throw invalid(`${at} changes nothing. Give title, use or key.`)
+    record(before, refusedAt(at, () => store.addRef(owner, { kind: before.kind, target: before.target, ...fields })))
+  })
+
+  listArg(ops.remove ?? [], `${where}.remove`).forEach((entry, index) => {
+    const at = `${where}.remove[${index}]`
+    const named = typeof entry === 'string' ? { target: entry } : objectArg(entry, at)
+    only(named, ['target', 'kind'], at)
+    const reference = findReference(context, owner, named, at)
+    store.removeRef(owner, reference.uid)
+    removed.push(reference)
+  })
+
+  return refParts(added, removed, edited)
+}
+
+/**
+ * The reference of an owner that `named.target` names, as get shows it or as
+ * it was written. `named.kind` picks between two with the same target.
+ *
+ * @param {Context} context
+ * @param {RefOwner} owner
+ * @param {Record<string, unknown>} named
+ * @param {string} where
+ * @returns {Reference}
+ */
+function findReference(context, owner, named, where) {
+  const target = stringArg(named.target, `${where}.target`)
+  const kind = named.kind === undefined ? undefined : refKindArg(named.kind, `${where}.kind`)
+  const path = isWebAddress(target) ? null : filePath(target, context.paths())
+  const matches = context.store
+    .listRefs(owner)
+    .filter((reference) => (kind === undefined || reference.kind === kind) && (reference.target === target || (path !== null && sameTarget(reference, path))))
+  if (matches.length === 0) throw notFound(`${where}: there is no reference ${target}. Name it by its target, as get shows it.`)
+  if (matches.length > 1) {
+    throw invalid(`${where}: ${target} is more than one reference (${matches.map((reference) => reference.kind).join(', ')}). Give {target, kind}.`)
+  }
+  return matches[0]
+}
+
+/**
+ * Whether a reference points at `target`: a file's path compared the way
+ * folders are, anything else exactly.
+ *
+ * @param {Reference} reference
+ * @param {string} target as `parseReference` gives it
+ */
+function sameTarget(reference, target) {
+  if (reference.kind !== 'file') return reference.target === target
+  return isAbsolute(target) && normalFolder(reference.target) === normalFolder(target)
 }
 
 // -----------------------------------------------------------------------------

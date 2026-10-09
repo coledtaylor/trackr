@@ -1,14 +1,19 @@
 /// <reference types="@coledtaylor/helm-plugin-sdk/global" />
 /**
  * A portfolio: a card per project, four stat cards, the epics counted across
- * projects, and the tasks in progress and waiting on another task. The v2
- * board's portfolio page. Its header opens the workflow and a new task.
+ * projects, the tasks in progress and waiting on another task, and its
+ * references. The v2 board's portfolio page. Its header opens the workflow
+ * and a new task.
+ *
+ * Drawing again keeps a reference being added or changed, with its focus.
  */
 
-import { ICONS, colourVar, el, fill, lineIcon, segments, sessionChip, statusIcon, svg, swatch, tile, tint } from '../shared/dom.js'
+import { ICONS, colourVar, el, lineIcon, redraw, segments, sessionChip, statusIcon, svg, swatch, tile, tint } from '../shared/dom.js'
 import { age, trend } from '../shared/logic.js'
 import { openTaskDialog } from '../shared/new-task.js'
 import { openItem, openProject, openWorkflow, rpc } from '../shared/work.js'
+import { createEditing } from './edit.js'
+import { referencesCard } from './references.js'
 
 /**
  * @typedef {import('../shared/types.js').PortfolioOverview} PortfolioOverview
@@ -19,6 +24,7 @@ import { openItem, openProject, openWorkflow, rpc } from '../shared/work.js'
  * @typedef {import('../shared/types.js').Status} Status
  * @typedef {import('./parts.js').Host} Host
  * @typedef {import('./parts.js').View} View
+ * @typedef {import('./edit.js').Editing} Editing
  */
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -32,14 +38,25 @@ const MAX_SESSION_TILES = 4
  * @returns {View}
  */
 export function createPortfolioView(root, uid, host) {
+  /** @type {PortfolioOverview | null} */
+  let overview = null
+  const editing = createEditing(null, { reload: () => host.reload() }, draw)
+
+  function draw() {
+    if (overview === null) return
+    const shown = overview
+    root.className = 'view-portfolio'
+    redraw(root, () => [head(shown), body(shown, editing)])
+  }
+
   return {
     async load(isCurrent) {
-      const overview = /** @type {PortfolioOverview} */ (await rpc('portfolioOverview', uid))
+      const next = /** @type {PortfolioOverview} */ (await rpc('portfolioOverview', uid))
       if (!isCurrent()) return
-      host.setPlace({ portfolio: overview.portfolio.uid })
-      helm.surface.setTitle(overview.portfolio.name)
-      root.className = 'view-portfolio'
-      fill(root, [head(overview), body(overview)])
+      overview = next
+      host.setPlace({ portfolio: next.portfolio.uid })
+      helm.surface.setTitle(next.portfolio.name)
+      draw()
     }
   }
 }
@@ -122,9 +139,17 @@ function projectCard(project) {
 // ---------------------------------------------------------------------------
 // Body
 
-/** @param {PortfolioOverview} overview */
-function body(overview) {
-  return el('div', { class: 'pf-body' }, [stats(overview), epics(overview), lists(overview)])
+/**
+ * @param {PortfolioOverview} overview
+ * @param {Editing} editing
+ */
+function body(overview, editing) {
+  return el('div', { class: 'pf-body' }, [
+    stats(overview),
+    epics(overview),
+    lists(overview),
+    referencesCard(editing, { level: 'portfolio', uid: overview.portfolio.uid, refs: overview.refs, missing: overview.missing })
+  ])
 }
 
 /** @param {PortfolioOverview} overview */

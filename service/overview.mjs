@@ -1,4 +1,5 @@
-import { displayFolder } from './folders.mjs'
+import { isAbsolute } from 'node:path'
+import { displayFolder, normalFolder } from './folders.mjs'
 import { OPEN_GROUPS } from './model.mjs'
 
 /**
@@ -23,6 +24,8 @@ import { OPEN_GROUPS } from './model.mjs'
  * @typedef {ItemSummary & { done: number, total: number, cells: EpicCell[] }} EpicOverview
  * @typedef {{ id: string, uid: number, title: string, project: { uid: number, name: string, colour: string } }} Blocker
  * @typedef {Project & { place: string | null }} PlacedProject
+ * @typedef {import('./store.mjs').Reference} Reference
+ * @typedef {import('./folders.mjs').PathState} PathState
  */
 
 export const SERIES_DAYS = 14
@@ -261,4 +264,48 @@ export function orderOf(tasks, edges) {
   }
   for (const root of roots) walk(root, 0)
   return rows
+}
+
+/**
+ * The inherited references an owner's own do not already name, each target
+ * once, at the nearest level: `inherited` comes nearest first, as the
+ * store's inheritedRefs gives it.
+ *
+ * @template {Reference} R
+ * @param {Reference[]} own
+ * @param {R[]} inherited
+ * @returns {R[]}
+ */
+export function unshadowed(own, inherited) {
+  const seen = new Set(own.map(targetKey))
+  return inherited.filter((reference) => {
+    const key = targetKey(reference)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/**
+ * What two references are compared by: the target, a file's path the way
+ * folders are compared.
+ *
+ * @param {Reference} reference
+ */
+function targetKey(reference) {
+  return reference.kind === 'file' && isAbsolute(reference.target) ? `file ${normalFolder(reference.target)}` : reference.target
+}
+
+/**
+ * The file references whose path is gone, by uid. A path the file system
+ * cannot answer for is not called missing.
+ *
+ * @param {Reference[]} references
+ * @param {(path: string) => PathState} pathState
+ * @returns {number[]}
+ */
+export function missingFiles(references, pathState) {
+  return references
+    .filter((reference) => reference.kind === 'file' && isAbsolute(reference.target) && pathState(reference.target) === 'missing')
+    .map((reference) => reference.uid)
 }

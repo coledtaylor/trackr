@@ -37,21 +37,34 @@ export function changeParts(changes) {
 }
 
 /**
- * Links added and removed, counted apart from artifacts:
- * "link +2", "artifact +1", "link -1".
+ * Links added and removed: "link +2", "link -1".
  *
- * @param {{ kind?: string }[]} added
- * @param {{ kind?: string }[]} removed
+ * @param {unknown[]} added
+ * @param {unknown[]} removed
  * @returns {string[]}
  */
 export function linkParts(added, removed) {
   /** @type {string[]} */
   const parts = []
-  for (const [list, sign] of /** @type {const} */ ([[added, '+'], [removed, '-']])) {
-    const artifacts = list.filter((link) => link.kind === 'artifact').length
-    const others = list.length - artifacts
-    if (others > 0) parts.push(`link ${sign}${others}`)
-    if (artifacts > 0) parts.push(`artifact ${sign}${artifacts}`)
-  }
+  if (added.length > 0) parts.push(`link +${added.length}`)
+  if (removed.length > 0) parts.push(`link -${removed.length}`)
+  return parts
+}
+
+/**
+ * References added, removed and edited, whatever their kind: "ref +2",
+ * "ref -1", "ref edited 1".
+ *
+ * @param {unknown[]} added
+ * @param {unknown[]} removed
+ * @param {unknown[]} [edited] ones that were there already and changed their title, use or key
+ * @returns {string[]}
+ */
+export function refParts(added, removed, edited = []) {
+  /** @type {string[]} */
+  const parts = []
+  if (added.length > 0) parts.push(`ref +${added.length}`)
+  if (removed.length > 0) parts.push(`ref -${removed.length}`)
+  if (edited.length > 0) parts.push(`ref edited ${edited.length}`)
   return parts
 }

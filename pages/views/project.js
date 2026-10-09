@@ -3,11 +3,12 @@
  * A project: its tasks as a list grouped by status, each group in
  * its own box, or as a board with a column per status. Filters by epic,
  * priority and whether a session is on it, and a quick add under each
- * not-started group (and at the top of a board column). The v2 board's
- * project page.
+ * not-started group (and at the top of a board column). Its references sit
+ * above, in a group of their own. The v2 board's project page.
  *
  * What the person is doing survives a reload: the mode, filters, folded
- * groups, and text typed into a quick add, with its focus.
+ * groups, and text typed into a quick add or a reference's form, with its
+ * focus.
  */
 
 import {
@@ -27,6 +28,8 @@ import {
 } from '../shared/dom.js'
 import { age, boardColumns, listOrder, priorityMark } from '../shared/logic.js'
 import { announceChange, openItem, openPortfolio, openWorkflow, rpc } from '../shared/work.js'
+import { createEditing } from './edit.js'
+import { referenceParts } from './references.js'
 
 /**
  * @typedef {import('../shared/types.js').ProjectOverview} ProjectOverview
@@ -55,7 +58,7 @@ export function createProjectView(root, uid, host) {
     data: null,
     /** @type {Mode} */
     mode: saved.mode,
-    /** Status uid to open (true) or folded (false), where the person chose. */
+    /** Status uid, or `refs` for the references, to open (true) or folded (false), where the person chose. */
     folded: /** @type {Record<string, boolean>} */ (saved.open),
     /** 'any', 'none' or an epic ID */
     epic: 'any',
@@ -76,6 +79,7 @@ export function createProjectView(root, uid, host) {
   const head = el('header', { class: 'pj-head' })
   const filters = el('div', { class: 'pj-filters' })
   const content = el('div', { class: 'pj-content' })
+  const editing = createEditing(null, { reload: () => host.reload() }, draw)
 
   function save() {
     try {
@@ -96,13 +100,17 @@ export function createProjectView(root, uid, host) {
       fill(root, [head, filters, content])
     }
     const focused = document.activeElement
+    const focusKey = focused instanceof HTMLElement ? focused.dataset.focus ?? null : null
     const selection =
-      focused instanceof HTMLInputElement ? { start: focused.selectionStart, end: focused.selectionEnd } : null
+      focused instanceof HTMLInputElement && focused.type === 'text' ? { start: focused.selectionStart, end: focused.selectionEnd } : null
     fill(head, headParts(data))
     fill(filters, filterParts(data))
-    fill(content, state.mode === 'list' ? listParts(data) : boardParts(data))
+    fill(content, [refsGroup(data), ...(state.mode === 'list' ? listParts(data) : boardParts(data))])
     content.className = state.mode === 'list' ? 'pj-content pj-list' : 'pj-content pj-board'
-    if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected) {
+    // A reference's drag handle is drawn anew: the one with the same key takes the focus back.
+    const keyed = focusKey === null ? null : /** @type {HTMLElement | null} */ (root.querySelector(`[data-focus="${CSS.escape(focusKey)}"]`))
+    if (keyed) keyed.focus()
+    else if (focused instanceof HTMLElement && focused !== document.activeElement && focused.isConnected) {
       focused.focus()
       if (focused instanceof HTMLInputElement && selection) focused.setSelectionRange(selection.start, selection.end)
     }
@@ -260,6 +268,54 @@ export function createProjectView(root, uid, host) {
       if (state.sessionOnly && item.session === null) return false
       return true
     })
+  }
+
+  // -------------------------------------------------------------------------
+  // References
+
+  /**
+   * The project's references, in a group like a status's: open while there
+   * are some, unless the person chose.
+   *
+   * @param {ProjectOverview} data
+   */
+  function refsGroup(data) {
+    const open = state.folded.refs ?? data.refs.length > 0
+    const toggle = () => {
+      state.folded.refs = !open
+      save()
+      draw()
+    }
+    const add = () => {
+      if (!open) {
+        state.folded.refs = true
+        save()
+      }
+      editing.start('ref', 'ref.target')
+    }
+    return el('section', { class: 'pj-group pj-refs', attrs: { 'aria-label': 'References' } }, [
+      el('div', { class: 'pj-group-head' }, [
+        el(
+          'button',
+          {
+            class: 'pj-icon-button',
+            attrs: { type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-label': `${open ? 'Hide' : 'Show'} the references` },
+            on: { click: toggle }
+          },
+          [lineIcon(open ? ICONS.chevronDown : ICONS.chevronRight, 12, 2)]
+        ),
+        el('span', { class: 'pj-refs-icon' }, [lineIcon(ICONS.book, 14, 1.8)]),
+        el('span', { class: 'pj-group-name', text: 'References' }),
+        el('span', { class: 'counts', text: String(data.refs.length) }),
+        el('span', { class: 'work-grow' }),
+        el(
+          'button',
+          { class: 'pj-icon-button', attrs: { type: 'button', 'aria-label': 'Add a reference', title: 'Add a reference' }, on: { click: add } },
+          [lineIcon(ICONS.plus, 12, 2)]
+        )
+      ]),
+      open ? el('div', { class: 'it pj-refs-body' }, referenceParts(editing, { level: 'project', uid, refs: data.refs, missing: data.missing })) : null
+    ])
   }
 
   // -------------------------------------------------------------------------
