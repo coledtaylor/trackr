@@ -15,7 +15,8 @@
 
 import { TRASH, confirmDanger } from '../shared/dialog.js'
 import { ICONS, el, lineIcon, priorityGlyph, selectFace, statusIcon, swatch, toast } from '../shared/dom.js'
-import { LINK_KINDS, age, codeSpans, fileOpener, linkText, openableAddress, paragraphs, platformOf, priorityMark, timeLabel } from '../shared/logic.js'
+import { LINK_KINDS, age, fileOpener, linkText, openableAddress, platformOf, priorityMark, timeLabel } from '../shared/logic.js'
+import { markdownBlocks, markdownInline } from '../shared/markdown.js'
 import { announceChange, rpc } from '../shared/work.js'
 
 /** Who the person is in the log. */
@@ -26,6 +27,8 @@ export const YOU = 'You'
  * @typedef {import('../shared/types.js').Item} Item
  * @typedef {import('../shared/types.js').ItemSummary} ItemSummary
  * @typedef {import('../shared/types.js').Link} Link
+ * @typedef {import('../shared/markdown.js').Block} Block
+ * @typedef {import('../shared/markdown.js').Inline} Inline
  * @typedef {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} Field
  * @typedef {ReturnType<typeof createEditing>} Editing
  */
@@ -240,33 +243,145 @@ export function button(text, icon, onClick, variant = null) {
 }
 
 /**
- * Plain text as paragraphs with `code` spans.
+ * Markdown as blocks: a description or a handoff.
  *
  * @param {string} text
  * @param {string} className
  */
 export function richText(text, className) {
-  return el(
-    'div',
-    { class: className },
-    paragraphs(text).map((parts) => el('p', {}, codeNodes(parts)))
-  )
+  return el('div', { class: `it-md ${className}` }, markdownBlocks(text).map(blockNode))
 }
 
 /**
- * One run of text with `code` spans, in an element of its own.
+ * One run of Markdown, in an element of its own. Inside a button, links are
+ * drawn as text: a link cannot sit in a button.
  *
  * @param {'span' | 'div'} tag
  * @param {string} text
  * @param {string} className
+ * @param {{ links?: boolean }} [options]
  */
-export function inlineText(tag, text, className) {
-  return el(tag, { class: className }, codeNodes(codeSpans(text)))
+export function inlineText(tag, text, className, options = {}) {
+  return el(tag, { class: className }, inlineNodes(markdownInline(text), options.links ?? true))
 }
 
-/** @param {{ code: boolean, text: string }[]} parts */
-function codeNodes(parts) {
-  return parts.map((part) => (part.code ? el('code', { class: 'it-code', text: part.text }) : part.text))
+/** Markdown's six levels under the page's h1 and its sections' h2. */
+const HEADING_TAGS = /** @type {const} */ (['h3', 'h4', 'h5', 'h6', 'h6', 'h6'])
+
+/**
+ * @param {Block} block
+ * @returns {Node}
+ */
+function blockNode(block) {
+  switch (block.type) {
+    case 'paragraph':
+      return el('p', {}, inlineNodes(block.children, true))
+    case 'heading':
+      return el(HEADING_TAGS[block.level - 1], { class: `it-md-h it-md-h${block.level}` }, inlineNodes(block.children, true))
+    case 'code':
+      return el('pre', { class: 'it-md-pre' }, [el('code', { text: block.text })])
+    case 'quote':
+      return el('blockquote', { class: 'it-md-quote' }, block.children.map(blockNode))
+    case 'rule':
+      return el('hr', { class: 'it-md-rule' })
+    case 'list':
+      return listNode(block)
+    case 'table':
+      return tableNode(block)
+  }
+}
+
+/** @param {Extract<Block, { type: 'list' }>} list */
+function listNode(list) {
+  const items = list.items.map((item) =>
+    item.checked === null
+      ? el('li', {}, item.children.map(blockNode))
+      : el('li', { class: 'it-md-task' }, [
+          el('span', { class: 'it-md-check', attrs: { role: 'img', 'aria-label': item.checked ? 'Done' : 'Not done', 'data-checked': item.checked } }, [
+            item.checked ? lineIcon('M5 12.5l4.5 4.5L19 7.5', 9, 3.4) : null
+          ]),
+          el('div', { class: 'it-md-task-body' }, item.children.map(blockNode))
+        ])
+  )
+  const props = { class: list.loose ? 'it-md-list is-loose' : 'it-md-list' }
+  return list.ordered ? el('ol', { ...props, attrs: { start: list.start === 1 ? null : list.start } }, items) : el('ul', props, items)
+}
+
+/** @param {Extract<Block, { type: 'table' }>} table */
+function tableNode(table) {
+  /**
+   * @param {'th' | 'td'} tag
+   * @param {Inline[]} cell
+   * @param {number} column
+   */
+  const cellNode = (tag, cell, column) => el(tag, { style: table.align[column] ? { 'text-align': table.align[column] } : {} }, inlineNodes(cell, true))
+  return el('div', { class: 'it-md-table' }, [
+    el('table', {}, [
+      el('thead', {}, [el('tr', {}, table.head.map((cell, column) => cellNode('th', cell, column)))]),
+      table.rows.length === 0 ? null : el('tbody', {}, table.rows.map((row) => el('tr', {}, row.map((cell, column) => cellNode('td', cell, column)))))
+    ])
+  ])
+}
+
+/**
+ * @param {Inline[]} nodes
+ * @param {boolean} links
+ * @returns {(Node | string)[]}
+ */
+function inlineNodes(nodes, links) {
+  return nodes.map((node) => inlineNode(node, links))
+}
+
+/**
+ * @param {Inline} node
+ * @param {boolean} links
+ * @returns {Node | string}
+ */
+function inlineNode(node, links) {
+  switch (node.type) {
+    case 'text':
+      return node.text
+    case 'break':
+      return el('br')
+    case 'code':
+      return el('code', { class: 'it-code', text: node.text })
+    case 'strong':
+    case 'em':
+    case 'del':
+      return el(node.type, {}, inlineNodes(node.children, links))
+    case 'link':
+      return linkNode(node, links)
+  }
+}
+
+/**
+ * A link that opens in Helm's Browser tab. An address Helm cannot open (not
+ * `https`, a path, a branch) is drawn as its text, with the address in the
+ * tooltip.
+ *
+ * @param {Extract<Inline, { type: 'link' }>} link
+ * @param {boolean} links
+ */
+function linkNode(link, links) {
+  const address = links ? openableAddress(link.href) : null
+  const children = inlineNodes(link.children, false)
+  if (address === null) return el('span', { title: link.href }, children)
+  return el(
+    'a',
+    {
+      class: 'it-md-link',
+      title: address,
+      attrs: { href: address },
+      on: {
+        click: (/** @type {MouseEvent} */ event) => {
+          event.preventDefault()
+          void openLink(address)
+        },
+        auxclick: (/** @type {MouseEvent} */ event) => event.preventDefault()
+      }
+    },
+    children
+  )
 }
 
 /**

@@ -73,7 +73,7 @@ pages/panel.*        the sidebar panel
 pages/view.*         the tab: loads the view for a portfolio, its workflow, a project or an item
 pages/views/         one module per view
 pages/shared/        what the pages share: the service call, the page channel, icons, styles,
-                     the new task form, the in-page dialog, drag to reorder
+                     the new task form, the in-page dialog, drag to reorder, the Markdown reader
 test/                node:test suites for all of the above
 ```
 
@@ -183,6 +183,22 @@ dependencies (both ways), references and links, and the session can be let go.
 An edit is logged as "You", the way a session's update is logged with its
 name; checking off criteria is not logged. Moving a task out of an active status lets go of
 its session, as it does for a session's update.
+
+Descriptions, where it stands, criteria and log lines are Markdown, drawn by
+`pages/shared/markdown.js`: headings, lists (nested, numbered, `[ ]` and
+`[x]`), fenced code, quotes, rules and pipe tables; bold, emphasis,
+strikethrough, code and links. It is drawn as elements, never as HTML, so
+markup in the text shows as text. It follows what agents write rather than
+CommonMark where the two differ:
+
+- A single line break stays a line break, as in a GitHub comment.
+- `*` opens emphasis only after a space or an opening bracket, so a glob like
+  `part-*.patch` keeps its star, and `_` is never emphasis.
+- A backslash escapes only markup characters, so `C:\Users\me\.config` keeps
+  every backslash.
+- An `https` link opens in Helm's Browser tab; any other address shows as its
+  text, with the address in the tooltip. Links in a criterion are text: the
+  criterion is a button.
 
 **Delete**, under the column, asks first and says what goes with it: an
 epic's tasks stay, without an epic. The tab then says it was deleted; a plugin

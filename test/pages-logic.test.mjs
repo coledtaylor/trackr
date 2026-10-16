@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { age, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, fileOpener, linkText, listOrder, liveState, moved, openCount, openableAddress, paragraphs, platformOf, priorityMark, refAction, refName, refSources, refTitleIsTarget, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
+import { age, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, fileOpener, linkText, listOrder, liveState, moved, openCount, openableAddress, platformOf, priorityMark, refAction, refName, refSources, refTitleIsTarget, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
 
 describe('timeLabel', () => {
   const now = new Date(2026, 9, 7, 16, 30)
@@ -162,21 +162,6 @@ describe('trend', () => {
     assert.equal(trend([2, 5]), 'up 3 in 2 days')
     assert.equal(trend([4, 4]), 'no change in 2 days')
     assert.equal(trend([4]), '')
-  })
-})
-
-describe('paragraphs', () => {
-  it('splits on blank lines and marks code spans', () => {
-    assert.deepEqual(paragraphs('One `a` two.\r\n\r\n  \nThree\nfour'), [
-      [
-        { code: false, text: 'One ' },
-        { code: true, text: 'a' },
-        { code: false, text: ' two.' }
-      ],
-      [{ code: false, text: 'Three\nfour' }]
-    ])
-    assert.deepEqual(paragraphs('  \n\n'), [])
-    assert.deepEqual(paragraphs('a ` b'), [[{ code: false, text: 'a ` b' }]])
   })
 })
 

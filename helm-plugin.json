@@ -3,7 +3,7 @@
   "apiVersion": 1,
   "id": "trackr",
   "name": "Trackr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Portfolios, projects, epics and tasks, kept in one SQLite file on this computer, with tools for Claude Code sessions.",
   "icon": "icon.svg",
   "pageStrip": true,
@@ -153,7 +153,8 @@
                     "description": "Epics and tasks."
                   },
                   "description": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Markdown."
                   },
                   "status": {
                     "type": "string"
@@ -300,7 +301,8 @@
                     "type": "string"
                   },
                   "description": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Markdown."
                   },
                   "status": {
                     "type": "string"
@@ -367,7 +369,7 @@
                         "type": "string"
                       }
                     },
-                    "description": "Where it stands, replacing the last one."
+                    "description": "Where it stands, replacing the last one. Each part is Markdown."
                   },
                   "log": {
                     "anyOf": [

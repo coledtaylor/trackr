@@ -194,37 +194,6 @@ export function trend(series) {
 }
 
 /**
- * Plain text as paragraphs, split on blank lines, each a run of text and
- * `code` spans. Descriptions and handoffs are plain text, and agents put
- * backticks round names. Single line breaks stay in the text.
- *
- * @param {string} text
- * @returns {{ code: boolean, text: string }[][]}
- */
-export function paragraphs(text) {
-  return text
-    .replace(/\r\n?/g, '\n')
-    .split(/\n(?:[ \t]*\n)+/)
-    .map((paragraph) => paragraph.replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, ''))
-    .filter((paragraph) => paragraph.trim() !== '')
-    .map(codeSpans)
-}
-
-/**
- * Text as a run of plain text and `code` spans. A backtick with no partner on
- * its line stays as written.
- *
- * @param {string} text
- * @returns {{ code: boolean, text: string }[]}
- */
-export function codeSpans(text) {
-  return text
-    .split(/`([^`\n]+)`/)
-    .map((part, index) => ({ code: index % 2 === 1, text: part }))
-    .filter((part) => part.text !== '')
-}
-
-/**
  * An epic's tasks by project: the home project first, then the portfolio's
  * order, only projects with tasks in them. Cancelled tasks are listed but not
  * counted, as on the portfolio page: they are not work left or done.

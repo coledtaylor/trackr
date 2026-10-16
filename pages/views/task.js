@@ -8,6 +8,7 @@
 
 import { ICONS, el, lineIcon, svg, swatch, toast } from '../shared/dom.js'
 import { sessionFolder, sessionPrompt, timeLabel } from '../shared/logic.js'
+import { plainText } from '../shared/markdown.js'
 import { markSession } from '../shared/sessions.js'
 import { openItem, openPortfolio, openProject, rpc } from '../shared/work.js'
 import {
@@ -207,7 +208,7 @@ function criterionRow(item, criterion, editing) {
     {
       class: 'it-check',
       title: criterion.done ? 'Uncheck' : 'Check',
-      attrs: { type: 'button', role: 'checkbox', 'aria-checked': criterion.done ? 'true' : 'false', 'aria-label': criterion.text },
+      attrs: { type: 'button', role: 'checkbox', 'aria-checked': criterion.done ? 'true' : 'false', 'aria-label': plainText(criterion.text) },
       on: { click: () => void editing.call('setCriteriaDone', item.uid, [criterion.n], !criterion.done) }
     },
     [criterion.done ? lineIcon('M5 12.5l4.5 4.5L19 7.5', 11, 3.2) : null]
@@ -233,7 +234,7 @@ function criterionRow(item, criterion, editing) {
   }
   return el('div', { class: criterion.done ? 'it-crit is-done' : 'it-crit' }, [
     check,
-    el('button', { class: 'it-crit-text', title: 'Edit', attrs: { type: 'button' }, on: { click: () => editing.start(key) } }, [inlineText('span', criterion.text, '')]),
+    el('button', { class: 'it-crit-text', title: 'Edit', attrs: { type: 'button' }, on: { click: () => editing.start(key) } }, [inlineText('span', criterion.text, '', { links: false })]),
     iconButton('Remove this criterion', ICONS.close, () => void editing.call('removeCriterion', item.uid, criterion.n), 'it-remove')
   ])
 }
