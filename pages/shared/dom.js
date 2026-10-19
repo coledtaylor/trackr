@@ -4,6 +4,7 @@
  */
 
 import { markSession } from './sessions.js'
+import { opens } from './work.js'
 
 const SVG = 'http://www.w3.org/2000/svg'
 
@@ -168,7 +169,7 @@ export function swatch(colour, size) {
  * the list crosses projects.
  *
  * @param {import('./types.js').ItemSummary} item
- * @param {{ onOpen: () => void, showProject?: boolean, current?: boolean }} options
+ * @param {{ onOpen: import('./work.js').Opener, showProject?: boolean, current?: boolean }} options
  */
 export function itemRow(item, options) {
   return el(
@@ -177,7 +178,7 @@ export function itemRow(item, options) {
       class: 'work-item-row',
       title: `${item.id} ${item.title} · ${item.status.name} · ${item.project.name}`,
       attrs: { type: 'button', 'aria-current': options.current ? 'true' : null },
-      on: { click: options.onOpen }
+      on: opens(options.onOpen)
     },
     [
       statusIcon(item.status, 13),

@@ -27,7 +27,7 @@ import {
   waitsMark
 } from '../shared/dom.js'
 import { age, boardColumns, listOrder, priorityMark } from '../shared/logic.js'
-import { announceChange, openItem, openPortfolio, openWorkflow, rpc } from '../shared/work.js'
+import { announceChange, openItem, openPortfolio, openWorkflow, opens, rpc } from '../shared/work.js'
 import { createEditing } from './edit.js'
 import { referenceParts } from './references.js'
 
@@ -128,7 +128,7 @@ export function createProjectView(root, uid, host) {
             class: 'crumb',
             text: portfolio.name,
             attrs: { type: 'button' },
-            on: { click: () => void openPortfolio({ uid: portfolio.uid, key: portfolio.key, name: portfolio.name }) }
+            on: opens((how) => openPortfolio({ uid: portfolio.uid, key: portfolio.key, name: portfolio.name }, how))
           }),
           project.place ? el('span', { class: 'crumb-sep', text: '›' }) : null,
           project.place ? el('span', { class: 'work-mono pj-place work-ellip', text: project.place, title: project.folders.join('\n') }) : null
@@ -403,7 +403,7 @@ export function createProjectView(root, uid, host) {
         class: state.fresh.has(item.uid) ? 'pj-row is-new' : 'pj-row',
         attrs: { type: 'button' },
         title: `${item.id} ${item.title}`,
-        on: { click: () => void openItem(item) }
+        on: opens((how) => openItem(item, how))
       },
       [
         statusIcon(item.status, 14),
@@ -476,7 +476,7 @@ export function createProjectView(root, uid, host) {
     const hasFoot = item.epic !== null || item.waitingOn.length > 0 || item.session !== null
     return el(
       'button',
-      { class: state.fresh.has(item.uid) ? 'pj-card is-new' : 'pj-card', attrs: { type: 'button' }, on: { click: () => void openItem(item) } },
+      { class: state.fresh.has(item.uid) ? 'pj-card is-new' : 'pj-card', attrs: { type: 'button' }, on: opens((how) => openItem(item, how)) },
       [
         el('span', { class: 'pj-card-top' }, [
           el('span', { class: 'work-id', text: item.id }),

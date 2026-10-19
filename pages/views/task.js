@@ -10,7 +10,7 @@ import { ICONS, el, lineIcon, svg, swatch, toast } from '../shared/dom.js'
 import { sessionFolder, sessionPrompt, timeLabel } from '../shared/logic.js'
 import { plainText } from '../shared/markdown.js'
 import { markSession } from '../shared/sessions.js'
-import { openItem, openPortfolio, openProject, rpc } from '../shared/work.js'
+import { openItem, openPortfolio, openProject, opens, rpc } from '../shared/work.js'
 import {
   YOU,
   button,
@@ -39,6 +39,8 @@ import { referencesCard } from './references.js'
  * @typedef {import('../shared/types.js').ItemSummary} ItemSummary
  * @typedef {import('../shared/types.js').FindResult} FindResult
  * @typedef {import('./edit.js').Editing} Editing
+ * @typedef {import('../shared/work.js').OpenHow} OpenHow
+ * @typedef {import('../shared/work.js').Opener} Opener
  * @typedef {{ found: ItemSummary[] | null, findSeq: number, findTimer: ReturnType<typeof setTimeout> | undefined, logAll: boolean }} TaskState
  */
 
@@ -85,12 +87,12 @@ export function taskParts(data, editing, state, redraw) {
 function head(data, editing) {
   const { item, portfolio } = data
   const epic = item.epic ? data.epics.find((candidate) => candidate.id === item.epic?.id) ?? null : null
-  const goEpic = epic ? () => void openItem(epic) : null
-  const goProject = () => void openProject(item.project)
+  const goEpic = epic ? (/** @type {OpenHow} */ how) => openItem(epic, how) : null
+  const goProject = (/** @type {OpenHow} */ how) => openProject(item.project, how)
   return el('header', { class: 'it-head' }, [
     el('div', { class: 'it-head-main' }, [
       el('nav', { class: 'it-crumbs', attrs: { 'aria-label': 'Where this is' } }, [
-        crumb(portfolio.name, () => void openPortfolio(portfolio)),
+        crumb(portfolio.name, (how) => openPortfolio(portfolio, how)),
         sep(),
         crumb(item.project.name, goProject),
         item.epic && goEpic ? sep() : null,
@@ -102,7 +104,7 @@ function head(data, editing) {
       el('div', { class: 'it-chips' }, [
         statusChip(data),
         priorityChip(data),
-        chip([swatch(item.project.colour, 8), item.project.name], { onClick: goProject, title: 'Open the project' }),
+        chip([swatch(item.project.colour, 8), item.project.name], { onOpen: goProject, title: 'Open the project' }),
         item.epic
           ? chip(
               [
@@ -110,7 +112,7 @@ function head(data, editing) {
                 // One run of text, so the ID and the title share a baseline.
                 el('span', { class: 'work-ellip' }, [el('span', { class: 'it-mono it-chip-id', text: item.epic.id }), ' ', item.epic.title])
               ],
-              { onClick: goEpic ?? undefined, title: 'Open the epic', extraClass: 'it-chip-epic' }
+              { onOpen: goEpic ?? undefined, title: 'Open the epic', extraClass: 'it-chip-epic' }
             )
           : null,
         item.session ? sessionHolder(item, editing) : null
@@ -149,11 +151,11 @@ function sessionHolder(item, editing) {
 
 /**
  * @param {string} text
- * @param {() => void} onClick
+ * @param {Opener} onOpen
  * @param {boolean} [mono]
  */
-function crumb(text, onClick, mono = false) {
-  return el('button', { class: mono ? 'crumb it-mono' : 'crumb', text, attrs: { type: 'button' }, on: { click: onClick } })
+function crumb(text, onOpen, mono = false) {
+  return el('button', { class: mono ? 'crumb it-mono' : 'crumb', text, attrs: { type: 'button' }, on: opens(onOpen) })
 }
 
 function sep() {
@@ -422,7 +424,7 @@ function dependenciesCard(data, editing, state, redraw) {
       ? [el('p', { class: 'it-none', text: 'Nothing.' })]
       : item.waitsOn.map((other) =>
           el('div', { class: 'it-dep' }, [
-            otherItem(other, project, () => void openItem(other)),
+            otherItem(other, project, opens((how) => openItem(other, how))),
             remove(() => void editing.edit({ waitsOn: { remove: [other.uid] } }), `Stop waiting on ${other.id}`)
           ])
         )),
@@ -431,7 +433,7 @@ function dependenciesCard(data, editing, state, redraw) {
       ? [el('p', { class: 'it-none', text: 'Nothing.' })]
       : item.blocks.map((other) =>
           el('div', { class: 'it-dep' }, [
-            otherItem(other, project, () => void openItem(other)),
+            otherItem(other, project, opens((how) => openItem(other, how))),
             remove(() => void editing.editOther(other.uid, { waitsOn: { remove: [item.uid] } }), `${other.id} stops waiting on this`)
           ])
         )),
@@ -495,7 +497,7 @@ function dependencyPicker(data, editing, state, redraw) {
         : el(
             'div',
             { class: 'it-picker-list' },
-            choices.map((other) => otherItem(other, item.project.uid, () => void pick(other)))
+            choices.map((other) => otherItem(other, item.project.uid, { click: () => void pick(other) }))
           )
   ])
 }

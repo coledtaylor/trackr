@@ -11,7 +11,7 @@
 import { ICONS, colourVar, el, lineIcon, redraw, segments, sessionChip, statusIcon, svg, swatch, tile, tint } from '../shared/dom.js'
 import { age, trend } from '../shared/logic.js'
 import { openTaskDialog } from '../shared/new-task.js'
-import { openItem, openProject, openWorkflow, rpc } from '../shared/work.js'
+import { openItem, openProject, openWorkflow, opens, rpc } from '../shared/work.js'
 import { createEditing } from './edit.js'
 import { referencesCard } from './references.js'
 
@@ -80,7 +80,7 @@ function head(overview) {
         ])
       ]),
       el('div', { class: 'pf-actions' }, [
-        el('button', { class: 'helm-button pf-action', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio) } }, [
+        el('button', { class: 'helm-button pf-action', attrs: { type: 'button' }, on: opens((how) => openWorkflow(portfolio, undefined, how)) }, [
           lineIcon(ICONS.sliders, 13, 1.7),
           'Workflow'
         ]),
@@ -123,7 +123,7 @@ function addProjectCard(portfolio) {
 /** @param {PlacedProject} project */
 function projectCard(project) {
   const { open, active, done } = project.counts
-  return el('button', { class: 'pf-card', attrs: { type: 'button' }, on: { click: () => void openProject(project) } }, [
+  return el('button', { class: 'pf-card', attrs: { type: 'button' }, on: opens((how) => openProject(project, how)) }, [
     el('span', { class: 'pf-card-name' }, [tile(project.name.charAt(0).toUpperCase(), 22, project.colour), el('span', { class: 'work-ellip', text: project.name })]),
     el('span', { class: 'pf-card-count' }, [
       el('span', { class: 'pf-big', text: String(open) }),
@@ -284,7 +284,7 @@ function epicRow(epic, projects) {
       class: finished ? 'pf-matrix-row pf-epic is-finished' : 'pf-matrix-row pf-epic',
       title: `${epic.id} ${epic.title} · ${epic.status.name} · ${epic.done} of ${epic.total} done`,
       attrs: { type: 'button' },
-      on: { click: () => void openItem(epic) }
+      on: opens((how) => openItem(epic, how))
     },
     [
       el('span', { class: 'pf-epic-main' }, [
@@ -380,7 +380,7 @@ function box(icon, title, count, empty, rows) {
 
 /** @param {ItemSummary} item */
 function activeRow(item) {
-  return el('button', { class: 'pf-row', attrs: { type: 'button' }, on: { click: () => void openItem(item) } }, [
+  return el('button', { class: 'pf-row', attrs: { type: 'button' }, on: opens((how) => openItem(item, how)) }, [
     el('span', { class: 'pf-row-main' }, [
       el('span', { class: 'pf-row-line' }, [el('span', { class: 'work-id', text: item.id }), el('span', { class: 'work-ellip', text: item.title })]),
       el('span', { class: 'pf-row-meta' }, [swatch(item.project.colour, 7), el('span', { text: item.project.name }), el('span', { text: '·' }), el('span', { text: item.status.name })])
@@ -395,7 +395,7 @@ function activeRow(item) {
  */
 function waitingRow(item, waitsOn) {
   const first = waitsOn[0]
-  return el('button', { class: 'pf-row pf-row-stack', attrs: { type: 'button' }, on: { click: () => void openItem(item) } }, [
+  return el('button', { class: 'pf-row pf-row-stack', attrs: { type: 'button' }, on: opens((how) => openItem(item, how)) }, [
     el('span', { class: 'pf-row-line' }, [el('span', { class: 'work-id', text: item.id }), el('span', { class: 'work-ellip', text: item.title })]),
     el('span', { class: 'pf-row-meta' }, [
       swatch(item.project.colour, 7),

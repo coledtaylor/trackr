@@ -6,7 +6,7 @@
  */
 
 import { el, fill, redraw } from '../shared/dom.js'
-import { itemTitle, openProject, rpc } from '../shared/work.js'
+import { itemTitle, openProject, opens, rpc } from '../shared/work.js'
 import { createEditing } from './edit.js'
 import { epicParts } from './epic.js'
 import { taskParts, taskState } from './task.js'
@@ -54,7 +54,7 @@ export function createItemView(root, uid, host) {
     fill(root, [
       el('div', { class: 'state', attrs: { role: 'status' } }, [
         el('p', { class: 'quiet', text: `${item.id} ${item.title} was deleted.` }),
-        el('button', { class: 'helm-button', text: `Open ${item.project.name}`, attrs: { type: 'button' }, on: { click: () => void openProject(item.project) } })
+        el('button', { class: 'helm-button', text: `Open ${item.project.name}`, attrs: { type: 'button' }, on: opens((how) => openProject(item.project, how)) })
       ])
     ])
     helm.surface.setTitle(`${item.id} deleted`)

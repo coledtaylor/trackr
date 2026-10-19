@@ -8,7 +8,7 @@
 
 import { ICONS, colourVar, el, lineIcon, priorityGlyph, sessionChip, statusIcon, swatch, tile, tint, toast, waitsMark } from '../shared/dom.js'
 import { age, epicGroups, priorityMark } from '../shared/logic.js'
-import { openItem, openPortfolio, openProject } from '../shared/work.js'
+import { openItem, openPortfolio, openProject, opens } from '../shared/work.js'
 import { button, chip, descriptionSection, editorActions, lineField, linksCard, priorityChip, propertiesCard, propertySelect, stamp, statusChip, titleBlock } from './edit.js'
 import { referencesCard } from './references.js'
 
@@ -63,7 +63,7 @@ function head(data, editing, span) {
     el('span', { class: 'it-epic-tile' }, [lineIcon(ICONS.epic, 20, 1.6)]),
     el('div', { class: 'it-head-main' }, [
       el('nav', { class: 'it-crumbs', attrs: { 'aria-label': 'Where this is' } }, [
-        el('button', { class: 'crumb', text: portfolio.name, attrs: { type: 'button' }, on: { click: () => void openPortfolio(portfolio) } }),
+        el('button', { class: 'crumb', text: portfolio.name, attrs: { type: 'button' }, on: opens((how) => openPortfolio(portfolio, how)) }),
         el('span', { class: 'crumb-sep', text: '›' }),
         el('span', { text: 'Epic' }),
         el('span', { class: 'it-mono it-crumb-here', text: item.id })
@@ -73,7 +73,7 @@ function head(data, editing, span) {
         statusChip(data),
         priorityChip(data),
         chip([lineIcon(ICONS.home, 12, 2), swatch(item.project.colour, 8), item.project.name], {
-          onClick: () => void openProject(item.project),
+          onOpen: (how) => openProject(item.project, how),
           title: 'Home project: open it'
         }),
         span > 0 ? el('span', { class: 'it-span', text: span === 1 ? 'in 1 project' : `spans ${span} projects` }) : null
@@ -150,7 +150,7 @@ function groupBox(data, group) {
   return el('div', { class: 'it-group' }, [
     el('div', { class: 'it-group-head', style: { background: tint(colour, 7) } }, [
       tile(group.project.name.charAt(0).toUpperCase(), 22, group.project.colour),
-      el('button', { class: 'it-group-name', text: group.project.name, attrs: { type: 'button' }, on: { click: () => void openProject(group.project) } }),
+      el('button', { class: 'it-group-name', text: group.project.name, attrs: { type: 'button' }, on: opens((how) => openProject(group.project, how)) }),
       group.home ? el('span', { class: 'it-home-tag' }, [lineIcon(ICONS.home, 9, 2.4), 'home']) : null,
       el('span', { class: 'it-sub', text: `${group.done} of ${group.total} done` }),
       el('span', { class: 'it-grow' }),
@@ -160,7 +160,7 @@ function groupBox(data, group) {
       const rank = priorities.find((priority) => priority.uid === task.priority.uid)?.rank ?? priorities.length
       return el(
         'button',
-        { class: 'it-task', title: `${task.id} ${task.title} · ${task.status.name}`, attrs: { type: 'button' }, on: { click: () => void openItem(task) } },
+        { class: 'it-task', title: `${task.id} ${task.title} · ${task.status.name}`, attrs: { type: 'button' }, on: opens((how) => openItem(task, how)) },
         [
           statusIcon(task.status, 14),
           el('span', { class: 'it-mono it-task-id', text: task.id }),
@@ -240,7 +240,7 @@ function orderCard(data) {
           title: `${task.id} ${task.title} (${task.project.name}) · ${task.status.name}`,
           style: { 'padding-left': `${depth === 0 ? 0 : 4 + (depth - 1) * 15}px` },
           attrs: { type: 'button' },
-          on: { click: () => void openItem(task) }
+          on: opens((how) => openItem(task, how))
         },
         [
           depth > 0 ? el('span', { class: 'it-elbow' }) : null,

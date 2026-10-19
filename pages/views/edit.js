@@ -17,7 +17,7 @@ import { TRASH, confirmDanger } from '../shared/dialog.js'
 import { ICONS, el, lineIcon, priorityGlyph, selectFace, statusIcon, swatch, toast } from '../shared/dom.js'
 import { LINK_KINDS, age, fileOpener, linkText, openableAddress, platformOf, priorityMark, timeLabel } from '../shared/logic.js'
 import { markdownBlocks, markdownInline } from '../shared/markdown.js'
-import { announceChange, rpc } from '../shared/work.js'
+import { announceChange, opens, rpc } from '../shared/work.js'
 
 /** Who the person is in the log. */
 export const YOU = 'You'
@@ -395,15 +395,15 @@ export function sectionHead(title, after = []) {
 }
 
 /**
- * A pill in the header. A button when it does something.
+ * A pill in the header. A link when it opens something.
  *
  * @param {(Node | string | null)[]} children
- * @param {{ onClick?: () => void, title?: string, extraClass?: string }} [options]
+ * @param {{ onOpen?: import('../shared/work.js').Opener, title?: string, extraClass?: string }} [options]
  */
 export function chip(children, options = {}) {
   const props = { class: `it-chip ${options.extraClass ?? ''}`.trim(), title: options.title }
-  return options.onClick
-    ? el('button', { ...props, attrs: { type: 'button' }, on: { click: options.onClick } }, children)
+  return options.onOpen
+    ? el('button', { ...props, attrs: { type: 'button' }, on: opens(options.onOpen) }, children)
     : el('span', props, children)
 }
 
@@ -788,14 +788,14 @@ function linkForm(editing) {
 /**
  * A row for another item: its status, ID and title, and its project's colour
  * when it is not this item's (the name is in the tooltip: the column is too
- * narrow for both). Pressing it opens it.
+ * narrow for both). `on` says what pressing it does: opening it, or picking it.
  *
  * @param {ItemSummary} other
  * @param {number} project this item's project
- * @param {() => void} onOpen
+ * @param {import('../shared/dom.js').Props['on']} on
  */
-export function otherItem(other, project, onOpen) {
-  return el('button', { class: 'it-other', title: `${other.id} ${other.title} · ${other.status.name} · ${other.project.name}`, attrs: { type: 'button' }, on: { click: onOpen } }, [
+export function otherItem(other, project, on) {
+  return el('button', { class: 'it-other', title: `${other.id} ${other.title} · ${other.status.name} · ${other.project.name}`, attrs: { type: 'button' }, on }, [
     statusIcon(other.status, 13),
     el('span', { class: 'it-mono it-other-id', text: other.id }),
     el('span', { class: 'work-ellip it-other-title', text: other.title }),

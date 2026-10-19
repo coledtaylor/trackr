@@ -8,7 +8,9 @@
  *   on screen.
  * - `open*` open the plugin's view tab for a portfolio, its workflow, a
  *   project or an item. A tab is keyed by uid, so it survives a rename and a
- *   portfolio key change.
+ *   portfolio key change. Opened as a preview, as Helm opens a file on a
+ *   click, the next preview takes its place; `opens` gives a link that
+ *   click, and a double click that opens to stay.
  */
 
 export class ServiceError extends Error {
@@ -83,14 +85,65 @@ export function listen(listener) {
   return () => channel.removeEventListener('message', handler)
 }
 
-/** Tells the other pages to read again. The sender refreshes itself. */
+/**
+ * Tells the other pages to read again. The sender refreshes itself. A tab
+ * that changed something stays, as a file being edited does.
+ */
 export function announceChange() {
+  keepTab()
   post({ type: 'changed' })
 }
 
-/** @param {{ uid: number, key: string, name: string }} portfolio */
-export function openPortfolio(portfolio) {
-  return helm.tabs.open('view', { kind: 'portfolio', uid: portfolio.uid }, { title: portfolio.name })
+/**
+ * Keeps this page's tab when it was opened as a preview, so the next preview
+ * does not replace it. No effect in a tab that stays, or outside a tab (the
+ * panel, the background page). Helm before 2.3.2 has no previews, nor `keep`.
+ */
+export function keepTab() {
+  if (typeof helm.surface.keep === 'function') helm.surface.keep()
+}
+
+/**
+ * How a view opens: `preview` as the preview the next one replaces, else to
+ * stay.
+ *
+ * @typedef {{ preview?: boolean }} OpenHow
+ * @typedef {(how: OpenHow) => unknown} Opener
+ */
+
+/**
+ * The handlers that open a view the way Helm opens a file: a click previews
+ * it, a double click opens it to stay. An element's `on`.
+ *
+ * @param {Opener} open
+ */
+export function opens(open) {
+  return {
+    click: () => void open({ preview: true }),
+    dblclick: () => void open({})
+  }
+}
+
+/**
+ * Opens one view tab. The page it is opened from stays when that is a tab: a
+ * board or a task the user follows a link from is where they are working, and
+ * must not be the preview the link replaces.
+ *
+ * @param {{ kind: ViewKind, uid: number }} params
+ * @param {string} title
+ * @param {OpenHow} how
+ */
+function openView(params, title, how) {
+  keepTab()
+  return helm.tabs.open('view', params, { title, preview: how.preview === true })
+}
+
+/**
+ * @param {{ uid: number, key: string, name: string }} portfolio
+ * @param {OpenHow} [how]
+ */
+export function openPortfolio(portfolio, how = {}) {
+  return openView({ kind: 'portfolio', uid: portfolio.uid }, portfolio.name, how)
 }
 
 const FOCUS = 'trackr.workflow.focus'
@@ -111,8 +164,9 @@ const FOCUS_MS = 15_000
  *
  * @param {{ uid: number, name: string }} portfolio
  * @param {ProjectFocus} [project]
+ * @param {OpenHow} [how]
  */
-export function openWorkflow(portfolio, project) {
+export function openWorkflow(portfolio, project, how = {}) {
   if (project !== undefined) {
     try {
       localStorage.setItem(FOCUS, JSON.stringify({ portfolio: portfolio.uid, project, at: Date.now() }))
@@ -121,7 +175,7 @@ export function openWorkflow(portfolio, project) {
     }
     post({ type: 'focus' })
   }
-  return helm.tabs.open('view', { kind: 'workflow', uid: portfolio.uid }, { title: `${portfolio.name} workflow` })
+  return openView({ kind: 'workflow', uid: portfolio.uid }, `${portfolio.name} workflow`, how)
 }
 
 /**
@@ -143,14 +197,20 @@ export function takeFocus(portfolio) {
   }
 }
 
-/** @param {{ uid: number, name: string }} project */
-export function openProject(project) {
-  return helm.tabs.open('view', { kind: 'project', uid: project.uid }, { title: project.name })
+/**
+ * @param {{ uid: number, name: string }} project
+ * @param {OpenHow} [how]
+ */
+export function openProject(project, how = {}) {
+  return openView({ kind: 'project', uid: project.uid }, project.name, how)
 }
 
-/** @param {{ uid: number, id: string, title: string }} item */
-export function openItem(item) {
-  return helm.tabs.open('view', { kind: 'item', uid: item.uid }, { title: itemTitle(item) })
+/**
+ * @param {{ uid: number, id: string, title: string }} item
+ * @param {OpenHow} [how]
+ */
+export function openItem(item, how = {}) {
+  return openView({ kind: 'item', uid: item.uid }, itemTitle(item), how)
 }
 
 /**

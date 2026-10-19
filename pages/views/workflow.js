@@ -10,7 +10,7 @@ import { TRASH, confirmDanger } from '../shared/dialog.js'
 import { ICONS, el, lineIcon, priorityGlyph, redraw, selectFace, statusIcon, swatch, tile, toast } from '../shared/dom.js'
 import { PORTFOLIO_KEY, STATUS_GROUPS, moved, priorityMark, replacementStatus, statusOrder, statusesByGroup } from '../shared/logic.js'
 import { dragHandle } from '../shared/sortable.js'
-import { announceChange, openPortfolio, openProject, rpc, takeFocus } from '../shared/work.js'
+import { announceChange, openPortfolio, openProject, opens, rpc, takeFocus } from '../shared/work.js'
 import { button, createEditing, editorActions, iconButton, lineField } from './edit.js'
 
 /**
@@ -139,7 +139,7 @@ export function createWorkflowView(root, uid, host) {
       el('span', { class: 'wf-tile' }, [lineIcon(ICONS.sliders, 19, 1.6)]),
       el('div', { class: 'wf-title' }, [
         el('nav', { class: 'it-crumbs', attrs: { 'aria-label': 'Where this is' } }, [
-          el('button', { class: 'crumb', text: portfolio.name, attrs: { type: 'button' }, on: { click: () => void openPortfolio(portfolio) } }),
+          el('button', { class: 'crumb', text: portfolio.name, attrs: { type: 'button' }, on: opens((how) => openPortfolio(portfolio, how)) }),
           el('span', { class: 'crumb-sep', text: '›' }),
           el('span', { text: 'Settings' })
         ]),
@@ -475,7 +475,7 @@ export function createWorkflowView(root, uid, host) {
         text: project.name,
         title: `Open ${project.name}`,
         attrs: { type: 'button' },
-        on: { click: () => void openProject(project) }
+        on: opens((how) => openProject(project, how))
       }),
       el('span', {
         class: project.place ? 'wf-place work-mono work-ellip' : 'wf-place wf-place-none work-ellip',

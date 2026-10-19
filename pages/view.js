@@ -7,7 +7,7 @@
  */
 
 import { el, fill } from './shared/dom.js'
-import { listen, post } from './shared/work.js'
+import { keepTab, listen, post } from './shared/work.js'
 import { createItemView } from './views/item.js'
 import { createPortfolioView } from './views/portfolio.js'
 import { createProjectView } from './views/project.js'
@@ -83,6 +83,11 @@ helm.on('visibility', (visible) => {
   announce()
   if (visible) void load()
 })
+
+// Typing into the page keeps a preview tab, as an edited file stays: the next
+// preview must not replace what the user is half way through. Writes keep it
+// too, through announceChange.
+document.addEventListener('input', keepTab, { capture: true, once: true })
 
 window.addEventListener('pagehide', () => {
   post({ type: 'view', tab, kind, uid, visible: false, at: Date.now() })

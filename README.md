@@ -14,6 +14,8 @@ and edit the same work in Helm's sidebar and tabs.
 
 - Helm 2.3.0 or later, the first that starts a session from a task, opens a
   link, lists its sessions and keeps a plugin's pages in one tab.
+  Helm 2.3.2 or later opens them as previews (below); before it, every page
+  opened stays.
 - Windows is where it is built and tested, as Helm is.
 - Nothing else: the service runs on the Node inside Helm and uses its built-in
   SQLite. There are no runtime dependencies.
@@ -122,6 +124,13 @@ active status, across every portfolio.
 
 A portfolio, its workflow, a project or an item opens as a page in one Trackr
 tab, with its own strip of pages, so they do not crowd the sessions' tabs.
+
+A click opens a page as the preview, in italic, as a click on a file does: the
+next page clicked takes its place, so clicking down a list leaves one page, not
+one per item. A double click on the link, or on the page in the strip, keeps it;
+so does typing into it or changing anything on it. The page a link is followed
+from stays, so a board is not replaced by the task clicked on it. A new task or
+project, and a project's settings, open to stay.
 
 - **Doing now** lists those tasks, with the session on each, dimmed once that
   session is no longer running.

@@ -14,7 +14,7 @@ import { ICONS, el, fill, itemRow, lineIcon, statusIcon, swatch, toast } from '.
 import { PORTFOLIO_KEY, defaultProject, exactIdFirst, openCount, suggestKey, timeLabel } from './shared/logic.js'
 import { lastProject, taskChoices, taskForm } from './shared/new-task.js'
 import { markSession } from './shared/sessions.js'
-import { announceChange, listen, openItem, openPortfolio, openProject, openWorkflow, post, rpc } from './shared/work.js'
+import { announceChange, listen, openItem, openPortfolio, openProject, openWorkflow, opens, post, rpc } from './shared/work.js'
 
 /**
  * @typedef {import('./shared/types.js').PortfolioSummary} PortfolioSummary
@@ -132,7 +132,7 @@ function findResults() {
   const counted = total > items.length ? `first ${items.length} of ${total}` : String(total)
   return [
     el('div', { class: 'cap-row' }, [el('span', { class: 'work-cap', text: 'Found' }), el('span', { class: 'work-grow' }), el('span', { class: 'cap-note', text: counted })]),
-    ...items.map((item) => itemRow(item, { showProject: true, current: isViewing('item', item.uid), onOpen: () => void openItem(item) }))
+    ...items.map((item) => itemRow(item, { showProject: true, current: isViewing('item', item.uid), onOpen: (how) => openItem(item, how) }))
   ]
 }
 
@@ -159,7 +159,7 @@ function doingCard(item) {
       class: 'dn',
       title: `${item.id} ${item.title}\n${item.status.name} · ${item.portfolio.key} ${item.project.name}${session ? `\n${session.name}${activeAt ? `, last active ${activeAt}` : ''}` : ''}`,
       attrs: { type: 'button', 'aria-current': isViewing('item', item.uid) ? 'true' : null },
-      on: { click: () => void openItem(item) }
+      on: opens((how) => openItem(item, how))
     },
     [
       el('span', { class: 'dn-line' }, [
@@ -216,12 +216,10 @@ function portfolioRows(portfolio, keyWidth) {
         class: 'prow-main',
         title: `${portfolio.name} (${portfolio.key})`,
         attrs: { type: 'button' },
-        on: {
-          click: () => {
-            setCollapsed(portfolio.uid, false)
-            void openPortfolio(portfolio)
-          }
-        }
+        on: opens((how) => {
+          setCollapsed(portfolio.uid, false)
+          return openPortfolio(portfolio, how)
+        })
       },
       [
         el('span', { class: 'work-tile', text: portfolio.key.slice(0, 4), attrs: { 'data-width': keyWidth } }),
@@ -273,7 +271,7 @@ function projectRow(project) {
       class: 'jrow',
       title: project.folders.length > 0 ? `${project.name}\n${project.folders.join('\n')}` : project.name,
       attrs: { type: 'button', 'aria-current': isViewing('project', project.uid) ? 'true' : null },
-      on: { click: () => void openProject(project) }
+      on: opens((how) => openProject(project, how))
     },
     [
       swatch(project.colour, 8),
@@ -338,7 +336,7 @@ find.addEventListener('keydown', (event) => {
   } else if (event.key === 'Enter') {
     event.preventDefault()
     const first = state.results?.items[0]
-    if (first && state.query !== '') void openItem(first)
+    if (first && state.query !== '') void openItem(first, { preview: true })
   } else if (event.key === 'ArrowDown') {
     const first = list.querySelector('button')
     if (first) {
