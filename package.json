@@ -1,6 +1,6 @@
 {
   "name": "trackr",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Work tracking for Helm: portfolios, projects, epics and tasks in one SQLite file, with tools for Claude Code sessions.",
   "license": "MIT",
   "repository": {

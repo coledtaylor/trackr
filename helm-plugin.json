@@ -3,7 +3,7 @@
   "apiVersion": 1,
   "id": "trackr",
   "name": "Trackr",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Portfolios, projects, epics and tasks, kept in one SQLite file on this computer, with tools for Claude Code sessions.",
   "icon": "icon.svg",
   "pageStrip": true,
@@ -41,7 +41,7 @@
     "start": "demand"
   },
   "exec": {
-    "explorer": "explorer.exe",
+    "explorer": "explorer",
     "open": "open",
     "xdg-open": "xdg-open"
   },
