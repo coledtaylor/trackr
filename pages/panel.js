@@ -258,9 +258,27 @@ function portfolioRows(portfolio, keyWidth) {
             el('span', { class: 'work-ellip work-grow', text: 'Add a project' })
           ])
         ]
-      : portfolio.projects.map(projectRow)
+      : [...portfolio.initiatives.map(initiativeRow), ...portfolio.projects.map(projectRow)]
   )
   return [row, projects]
+}
+
+/**
+ * An open initiative, above the projects its work runs across.
+ *
+ * @param {PortfolioSummary['initiatives'][number]} initiative
+ */
+function initiativeRow(initiative) {
+  return el(
+    'button',
+    {
+      class: 'jrow jrow-initiative',
+      title: `${initiative.id} ${initiative.title} · ${initiative.status.name}`,
+      attrs: { type: 'button', 'aria-current': isViewing('item', initiative.uid) ? 'true' : null },
+      on: opens((how) => openItem(initiative, how))
+    },
+    [el('span', { class: 'jrow-icon' }, [lineIcon(ICONS.initiative, 11, 2)]), el('span', { class: 'work-ellip work-grow', text: initiative.title })]
+  )
 }
 
 /** @param {Project} project */
@@ -404,7 +422,7 @@ async function openTask() {
     },
     onKind: (kind) => {
       const heading = newSection.querySelector('.new-head-title')
-      if (heading) heading.textContent = kind === 'epic' ? 'New epic' : 'New task'
+      if (heading) heading.textContent = `New ${kind}`
     }
   })
   showForm('New task', made.next, made.body, made.create)

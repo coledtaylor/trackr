@@ -212,5 +212,98 @@ export const MIGRATIONS = [
       FROM links l JOIN items i ON i.id = l.item_id
      WHERE l.kind = 'artifact';
   DELETE FROM links WHERE kind = 'artifact';
+  `,
+  // 4: initiatives, and the order work will be done in.
+  //
+  // An initiative is a third kind of item, above epics: it groups connected
+  // epics across the portfolio's projects. An epic is in at most one.
+  // SQLite cannot change a CHECK in place, so items is rebuilt the way its
+  // documentation sets out: a new table, the rows copied with their ids, the
+  // old one dropped and the new one renamed. The store runs migrations with
+  // foreign keys off and checks them before committing; every table that
+  // references items names it, and finds the new one under the same name.
+  // Dropping items drops its indexes and triggers, so they are made again.
+  //
+  // A sequence is the stages a piece of work is done in, in order. It belongs
+  // to an initiative, or to an epic outside one: the top of the work it plans.
+  // A stage holds items of its owner (an initiative's epics and their tasks,
+  // an epic's tasks), each in at most one stage. Positions of stages run 1 to
+  // n in their owner, so a stage's number is its position.
+  `
+  CREATE TABLE new_items (
+    id                INTEGER PRIMARY KEY,
+    portfolio_id      INTEGER NOT NULL REFERENCES portfolios(id),
+    number            INTEGER NOT NULL,
+    kind              TEXT NOT NULL CHECK (kind IN ('initiative', 'epic', 'task')),
+    project_id        INTEGER NOT NULL REFERENCES projects(id),
+    epic_id           INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    initiative_id     INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    title             TEXT NOT NULL,
+    description       TEXT NOT NULL DEFAULT '',
+    status_id         INTEGER NOT NULL REFERENCES statuses(id),
+    priority_id       INTEGER NOT NULL REFERENCES priorities(id),
+    position          REAL NOT NULL,
+    handoff_done      TEXT,
+    handoff_left      TEXT,
+    handoff_next      TEXT,
+    handoff_by        TEXT,
+    handoff_at        TEXT,
+    session_id        TEXT,
+    session_name      TEXT,
+    session_active_at TEXT,
+    created_by        TEXT,
+    created_at        TEXT NOT NULL,
+    updated_at        TEXT NOT NULL,
+    UNIQUE (portfolio_id, number),
+    CHECK (kind = 'task' OR epic_id IS NULL),
+    CHECK (kind = 'epic' OR initiative_id IS NULL)
+  ) STRICT;
+
+  INSERT INTO new_items (id, portfolio_id, number, kind, project_id, epic_id, title, description, status_id, priority_id,
+                         position, handoff_done, handoff_left, handoff_next, handoff_by, handoff_at,
+                         session_id, session_name, session_active_at, created_by, created_at, updated_at)
+    SELECT id, portfolio_id, number, kind, project_id, epic_id, title, description, status_id, priority_id,
+           position, handoff_done, handoff_left, handoff_next, handoff_by, handoff_at,
+           session_id, session_name, session_active_at, created_by, created_at, updated_at
+      FROM items;
+
+  DROP TABLE items;
+  ALTER TABLE new_items RENAME TO items;
+
+  CREATE INDEX items_project ON items (project_id);
+  CREATE INDEX items_epic ON items (epic_id);
+  CREATE INDEX items_initiative ON items (initiative_id);
+  CREATE INDEX items_status ON items (status_id);
+  CREATE INDEX items_priority ON items (priority_id);
+
+  CREATE TRIGGER status_history_insert AFTER INSERT ON items
+  BEGIN
+    INSERT INTO status_history (item_id, grp, at)
+      SELECT NEW.id, grp, NEW.created_at FROM statuses WHERE id = NEW.status_id;
+  END;
+
+  CREATE TRIGGER status_history_update AFTER UPDATE OF status_id ON items
+    WHEN (SELECT grp FROM statuses WHERE id = NEW.status_id) IS NOT (SELECT grp FROM statuses WHERE id = OLD.status_id)
+  BEGIN
+    INSERT INTO status_history (item_id, grp, at)
+      SELECT NEW.id, grp, NEW.updated_at FROM statuses WHERE id = NEW.status_id;
+  END;
+
+  CREATE TABLE stages (
+    id         INTEGER PRIMARY KEY,
+    owner_id   INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    position   INTEGER NOT NULL CHECK (position >= 1),
+    title      TEXT NOT NULL,
+    goal       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  ) STRICT;
+  CREATE INDEX stages_owner ON stages (owner_id, position);
+
+  CREATE TABLE stage_items (
+    item_id  INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    stage_id INTEGER NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+    position REAL NOT NULL
+  ) STRICT;
+  CREATE INDEX stage_items_stage ON stage_items (stage_id, position);
   `
 ]

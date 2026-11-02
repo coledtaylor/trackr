@@ -123,7 +123,7 @@ describe('create', () => {
 
   test('refuses unknown fields, refs that look like IDs, and refs that do not exist', () => {
     assert.throws(() => call('create', { items: [{ title: 'x', assignee: 'me' }] }, s3), {
-      message: 'items[0] does not take "assignee". It takes ref, kind, project, epic, title, description, status, priority, ac, waitsOn, links, references.'
+      message: 'items[0] does not take "assignee". It takes ref, kind, project, initiative, epic, title, description, status, priority, ac, waitsOn, links, references, stages, stage.'
     })
     assert.throws(() => call('create', { items: [{ ref: 'TC-9', title: 'x' }] }, s3), /looks like an ID/)
     assert.throws(() => call('create', { items: [{ title: 'x', waitsOn: ['nope'] }] }, s3), {
@@ -208,7 +208,7 @@ describe('create portfolios and projects', () => {
 
   test('refuses an unknown kind, fields of another kind, and a colour that is not a project colour', () => {
     assert.throws(() => call('create', { items: [{ kind: 'team', name: 'x' }] }, s3), {
-      message: 'items[0].kind is task, epic, project or portfolio, not "team".'
+      message: 'items[0].kind is task, epic, initiative, project or portfolio, not "team".'
     })
     assert.throws(() => call('create', { items: [{ kind: 'portfolio', key: 'NW', name: 'Newco', title: 'x' }] }, s3), {
       message: 'items[0] does not take "title". It takes kind, key, name, description, references.'

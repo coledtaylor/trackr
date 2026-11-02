@@ -409,7 +409,7 @@ export function createProjectView(root, uid, host) {
         statusIcon(item.status, 14),
         el('span', { class: 'work-id pj-row-id', text: item.id }),
         el('span', { class: 'pj-row-title' }, [
-          item.kind === 'epic' ? el('span', { class: 'work-kind', text: 'epic' }) : null,
+          item.kind === 'task' ? null : el('span', { class: 'work-kind', text: item.kind }),
           el('span', { class: 'work-ellip', text: item.title }),
           item.session ? sessionChip(item.session, item.session.activeAt ? age(item.session.activeAt) : '') : null,
           item.waitingOn.length > 0 ? waitsMark(item.waitingOn) : null
@@ -480,7 +480,7 @@ export function createProjectView(root, uid, host) {
       [
         el('span', { class: 'pj-card-top' }, [
           el('span', { class: 'work-id', text: item.id }),
-          item.kind === 'epic' ? el('span', { class: 'work-kind', text: 'epic' }) : null,
+          item.kind === 'task' ? null : el('span', { class: 'work-kind', text: item.kind }),
           el('span', { class: 'work-grow' }),
           priorityGlyph(mark, item.priority.name)
         ]),

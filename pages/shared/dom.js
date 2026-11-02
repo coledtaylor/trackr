@@ -75,6 +75,10 @@ export const ICONS = {
   session: 'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM7 9l3 3-3 3M12 15h5',
   plus: 'M12 5v14M5 12h14',
   epic: 'M13.5 3L5.5 13.5h6L10.5 21l8-10.5h-6z',
+  initiative: 'M5.5 21V3.8M5.5 4.5h12l-2.6 4 2.6 4h-12',
+  stages: 'M3.5 19h5v-4.5h5V10h5V5.5',
+  alert: 'M12 4.5l8.3 14.5H3.7zM12 10.2v3.9M12 16.6v.1',
+  chevronLeft: 'M15 6l-6 6 6 6',
   home: 'M4 11l8-6.5 8 6.5V20h-5v-5H9v5H4z',
   clock: 'M12 3.5a8.5 8.5 0 1 1 0 17a8.5 8.5 0 1 1 0-17zM12 7.5V12l3 2',
   waitsOn: 'M19 12H5M11 6l-6 6 6 6',
@@ -183,7 +187,7 @@ export function itemRow(item, options) {
     [
       statusIcon(item.status, 13),
       el('span', { class: 'work-id', text: item.id }),
-      item.kind === 'epic' ? el('span', { class: 'work-kind', text: 'epic' }) : null,
+      item.kind === 'task' ? null : el('span', { class: 'work-kind', text: item.kind }),
       el('span', { class: 'work-ellip work-grow', text: item.title }),
       options.showProject ? swatch(item.project.colour, 7) : null
     ]

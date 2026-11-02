@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { age, boardColumns, carryOption, defaultProject, epicGroups, exactIdFirst, fileOpener, linkText, listOrder, liveState, moved, openCount, openableAddress, platformOf, priorityMark, refAction, refName, refSources, refTitleIsTarget, replacementStatus, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
+import { age, boardColumns, carryOption, conflictNotes, defaultProject, dropBefore, epicGroups, exactIdFirst, fileOpener, linkText, listed, listOrder, liveState, moved, openCount, openableAddress, platformOf, priorityMark, refAction, refName, refSources, refTitleIsTarget, replacementStatus, sequenceLanes, sessionFolder, sessionPhrase, statusOrder, suggestKey, timeLabel, trend } from '../pages/shared/logic.js'
 
 describe('timeLabel', () => {
   const now = new Date(2026, 9, 7, 16, 30)
@@ -380,5 +380,69 @@ describe('openableAddress', () => {
     assert.equal(openableAddress('https://user:pass@example.com'), null)
     assert.equal(openableAddress(`https://example.com/${'a'.repeat(2048)}`), null)
     assert.equal(openableAddress('https://'), null)
+  })
+})
+
+describe('sequenceLanes', () => {
+  const project = (/** @type {number} */ uid) => ({ uid, name: `P${uid}`, colour: 'blue' })
+  const task = (/** @type {string} */ id, /** @type {string | null} */ epic, uid = 1) => ({ id, kind: 'task', epic: epic === null ? null : { id: epic }, project: project(uid) })
+  const epic = (/** @type {string} */ id) => ({ id, kind: 'epic', epic: null, project: project(1) })
+  const initiative = {
+    owner: { kind: 'initiative' },
+    epics: [{ id: 'E-1' }, { id: 'E-2' }, { id: 'E-3' }],
+    stages: [{ items: [task('T-1', 'E-2'), epic('E-1')] }, { items: [task('T-2', 'E-2'), task('T-3', 'E-1')] }]
+  }
+
+  it('lays an initiative out by epic, in the order their work starts', () => {
+    const lanes = sequenceLanes(initiative)
+    assert.deepEqual(lanes.map((lane) => lane.key), ['epic E-2', 'epic E-1'])
+    assert.deepEqual(lanes[0].cells.map((cell) => cell.map((entry) => entry.id)), [['T-1'], ['T-2']])
+    assert.deepEqual(lanes[1].cells.map((cell) => cell.map((entry) => entry.id)), [['E-1'], ['T-3']])
+    assert.deepEqual(lanes[1].epic, { id: 'E-1' })
+  })
+
+  it('draws one epic’s lane alone, even with nothing in a stage', () => {
+    assert.deepEqual(sequenceLanes(initiative, 'E-1').map((lane) => lane.key), ['epic E-1'])
+    const empty = sequenceLanes(initiative, 'E-3')
+    assert.deepEqual(empty.map((lane) => [lane.key, lane.cells]), [['epic E-3', [[], []]]])
+  })
+
+  it('lays an epic out by project', () => {
+    const plan = { owner: { kind: 'epic' }, epics: [], stages: [{ items: [task('T-1', 'E-1', 2), task('T-2', 'E-1', 1)] }] }
+    assert.deepEqual(sequenceLanes(plan).map((lane) => [lane.key, lane.project?.name]), [['project 2', 'P2'], ['project 1', 'P1']])
+  })
+})
+
+describe('conflictNotes', () => {
+  it('notes each side of a wait the order puts the wrong way round', () => {
+    const notes = conflictNotes([{ item: 'T-1', stage: 1, waitsOn: 'T-2', waitsOnStage: 3 }])
+    assert.deepEqual(Object.fromEntries(notes), { 'T-1': ['Waits on T-2, in stage 3'], 'T-2': ['T-1 waits on it from stage 1'] })
+  })
+})
+
+describe('dropBefore', () => {
+  const items = [
+    { uid: 1, top: 0, height: 40 },
+    { uid: 2, top: 44, height: 40 },
+    { uid: 3, top: 88, height: 40 }
+  ]
+
+  it('goes before the first item whose middle is below the pointer, else last', () => {
+    assert.equal(dropBefore(items, 10, 9), 1)
+    assert.equal(dropBefore(items, 30, 9), 2)
+    assert.equal(dropBefore(items, 120, 9), null)
+  })
+
+  it('never goes before the item being dragged', () => {
+    assert.equal(dropBefore(items, 50, 2), 3)
+  })
+})
+
+describe('listed', () => {
+  it('joins words the way a sentence does', () => {
+    assert.equal(listed([]), '')
+    assert.equal(listed(['2']), '2')
+    assert.equal(listed(['2', '3']), '2 and 3')
+    assert.equal(listed(['2', '3', '5']), '2, 3 and 5')
   })
 })

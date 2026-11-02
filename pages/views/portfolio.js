@@ -1,8 +1,8 @@
 /// <reference types="@coledtaylor/helm-plugin-sdk/global" />
 /**
- * A portfolio: a card per project, four stat cards, the epics counted across
- * projects, the tasks in progress and waiting on another task, and its
- * references. The v2 board's portfolio page. Its header opens the workflow
+ * A portfolio: a card per project, four stat cards, its initiatives with
+ * where their sequences stand, the epics counted across projects, the tasks
+ * in progress and waiting on another task, and its references. The v2 board's portfolio page. Its header opens the workflow
  * and a new task.
  *
  * Drawing again keeps a reference being added or changed, with its focus.
@@ -14,11 +14,13 @@ import { openTaskDialog } from '../shared/new-task.js'
 import { openItem, openProject, openWorkflow, opens, rpc } from '../shared/work.js'
 import { createEditing } from './edit.js'
 import { referencesCard } from './references.js'
+import { stageMark } from './sequence.js'
 
 /**
  * @typedef {import('../shared/types.js').PortfolioOverview} PortfolioOverview
  * @typedef {import('../shared/types.js').PlacedProject} PlacedProject
  * @typedef {import('../shared/types.js').EpicOverview} EpicOverview
+ * @typedef {import('../shared/types.js').InitiativeOverview} InitiativeOverview
  * @typedef {import('../shared/types.js').ItemSummary} ItemSummary
  * @typedef {import('../shared/types.js').Blocker} Blocker
  * @typedef {import('../shared/types.js').Status} Status
@@ -146,6 +148,7 @@ function projectCard(project) {
 function body(overview, editing) {
   return el('div', { class: 'pf-body' }, [
     stats(overview),
+    overview.initiatives.length > 0 ? initiatives(overview) : null,
     epics(overview),
     lists(overview),
     referencesCard(editing, { level: 'portfolio', uid: overview.portfolio.uid, refs: overview.refs, missing: overview.missing })
@@ -233,6 +236,79 @@ function weekBars(days) {
         style: { height: `${n === 0 ? 2 : Math.max(5, Math.round((n / max) * 28))}px`, background: n === 0 ? 'var(--helm-border-strong)' : 'var(--helm-success)' }
       })
     )
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Initiatives
+
+/** @param {PortfolioOverview} overview */
+function initiatives(overview) {
+  return el('section', { class: 'pf-epics pf-initiatives' }, [
+    el('div', { class: 'pf-epics-head' }, [el('h2', { text: 'Initiatives' })]),
+    el('div', { class: 'pf-inits' }, overview.initiatives.map(initiativeCard))
+  ])
+}
+
+/**
+ * An initiative: its title and status, a strip of its stages coloured by how
+ * far along each is, and the stage under way.
+ *
+ * @param {InitiativeOverview} initiative
+ */
+function initiativeCard(initiative) {
+  const finished = initiative.status.group === 'done' || initiative.status.group === 'closed'
+  const current = initiative.stages.find((stage) => stage.n === initiative.current) ?? null
+  const { progress } = initiative
+  return el(
+    'button',
+    {
+      class: finished ? 'pf-init is-finished' : 'pf-init',
+      title: `${initiative.id} ${initiative.title} · ${initiative.status.name}`,
+      attrs: { type: 'button' },
+      on: opens((how) => openItem(initiative, how))
+    },
+    [
+      el('span', { class: 'pf-init-top' }, [
+        el('span', { class: 'pf-init-icon' }, [lineIcon(ICONS.initiative, 13, 1.9)]),
+        el('span', { class: 'work-id', text: initiative.id }),
+        statusIcon(initiative.status, 12),
+        el('span', { class: 'pf-init-status', text: initiative.status.name }),
+        el('span', { class: 'work-grow' }),
+        el('span', { class: 'pf-init-counts', text: `${initiative.epics === 1 ? '1 epic' : `${initiative.epics} epics`} · ${progress.done} of ${progress.total} tasks done` })
+      ]),
+      el('span', { class: 'pf-init-title work-ellip', text: initiative.title }),
+      initiative.stages.length === 0
+        ? el('span', { class: 'pf-init-none', text: 'No sequence yet' })
+        : el(
+            'span',
+            { class: 'pf-init-strip', style: { 'grid-template-columns': `repeat(${initiative.stages.length}, minmax(0, 1fr))` } },
+            initiative.stages.map((stage) => {
+              const pct = stage.total === 0 ? 0 : Math.round((stage.done / stage.total) * 100)
+              return el('span', {
+                class: `pf-init-stage is-${stage.state}${stage.n === initiative.current ? ' is-current' : ''}`,
+                title: `${stage.n} ${stage.title}: ${stage.state === 'empty' ? 'empty' : `${stage.done} of ${stage.total} done`}`,
+                style: stage.state === 'active' ? { '--done': `${pct}%` } : {}
+              })
+            })
+          ),
+      el('span', { class: 'pf-init-foot' }, [
+        current ? stageMark(current.state, current.n, 16) : null,
+        el('span', {
+          class: 'work-ellip pf-init-now',
+          text: current
+            ? `Stage ${current.n} of ${initiative.stages.length} · ${current.title}`
+            : initiative.stages.length === 0
+              ? ''
+              : initiative.stages.every((stage) => stage.state === 'empty')
+                ? 'Nothing in a stage yet'
+                : 'Every stage done'
+        }),
+        el('span', { class: 'work-grow' }),
+        initiative.conflicts > 0 ? el('span', { class: 'tone-warn pf-init-flag' }, [lineIcon(ICONS.alert, 11, 2), `${initiative.conflicts} out of order`]) : null,
+        initiative.unplaced > 0 ? el('span', { class: 'pf-init-flag', text: `${initiative.unplaced} not in a stage` }) : null
+      ])
+    ]
   )
 }
 

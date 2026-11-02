@@ -4,6 +4,9 @@
  * order they can be done in, and its references and links. The v2 board's epic page; the
  * title, description, fields and links are edited in place, and tasks are
  * added in any project of the portfolio.
+ *
+ * Its sequence runs the width of the page under the header: its own, once it
+ * has stages, or, in an initiative, its lane of the initiative's.
  */
 
 import { ICONS, colourVar, el, lineIcon, priorityGlyph, sessionChip, statusIcon, swatch, tile, tint, toast, waitsMark } from '../shared/dom.js'
@@ -11,6 +14,8 @@ import { age, epicGroups, priorityMark } from '../shared/logic.js'
 import { openItem, openPortfolio, openProject, opens } from '../shared/work.js'
 import { button, chip, descriptionSection, editorActions, lineField, linksCard, priorityChip, propertiesCard, propertySelect, stamp, statusChip, titleBlock } from './edit.js'
 import { referencesCard } from './references.js'
+import { sequencePrompt, sequenceSection } from './sequence.js'
+import { stageChip } from './task.js'
 
 /**
  * @typedef {import('../shared/types.js').ItemOverview} ItemOverview
@@ -27,8 +32,21 @@ export function epicParts(data, editing) {
   const { item, projects } = data
   const tasks = item.tasks ?? []
   const groups = epicGroups(tasks, projects, item.project.uid)
+  const plan = data.plan
+  const own = plan !== null && plan.owner.id === item.id
+  const sequence =
+    plan === null
+      ? null
+      : own
+        ? plan.stages.length > 0 || editing.isOpen('stage.new')
+          ? sequenceSection(editing, plan)
+          : null
+        : plan.stages.length > 0
+          ? sequenceSection(editing, plan, { focus: item.id })
+          : null
   return [
     head(data, editing, groups.length),
+    sequence,
     el('div', { class: 'it-body' }, [
       el('div', { class: 'it-main' }, [
         groups.length > 0 ? progressCard(groups) : null,
@@ -39,6 +57,7 @@ export function epicParts(data, editing) {
       ]),
       el('aside', { class: 'it-aside' }, [
         propertiesCard(editing, data),
+        own && sequence === null ? sequencePrompt(editing) : null,
         tasks.length > 0 ? orderCard(data) : null,
         referencesCard(editing, { level: 'epic', uid: item.uid, refs: item.refs, inherited: data.inherited, missing: data.missing }),
         linksCard(editing, item),
@@ -59,12 +78,15 @@ export function epicParts(data, editing) {
  */
 function head(data, editing, span) {
   const { item, portfolio } = data
+  const initiative = item.initiative ? (data.initiatives.find((candidate) => candidate.id === item.initiative?.id) ?? null) : null
   return el('header', { class: 'it-head' }, [
     el('span', { class: 'it-epic-tile' }, [lineIcon(ICONS.epic, 20, 1.6)]),
     el('div', { class: 'it-head-main' }, [
       el('nav', { class: 'it-crumbs', attrs: { 'aria-label': 'Where this is' } }, [
         el('button', { class: 'crumb', text: portfolio.name, attrs: { type: 'button' }, on: opens((how) => openPortfolio(portfolio, how)) }),
         el('span', { class: 'crumb-sep', text: '›' }),
+        initiative ? el('button', { class: 'crumb it-mono', text: initiative.id, title: `${initiative.id} ${initiative.title}`, attrs: { type: 'button' }, on: opens((how) => openItem(initiative, how)) }) : null,
+        initiative ? el('span', { class: 'crumb-sep', text: '›' }) : null,
         el('span', { text: 'Epic' }),
         el('span', { class: 'it-mono it-crumb-here', text: item.id })
       ]),
@@ -76,6 +98,16 @@ function head(data, editing, span) {
           onOpen: (how) => openProject(item.project, how),
           title: 'Home project: open it'
         }),
+        initiative
+          ? chip(
+              [
+                lineIcon(ICONS.initiative, 11, 2),
+                el('span', { class: 'work-ellip' }, [el('span', { class: 'it-mono it-chip-id', text: initiative.id }), ' ', initiative.title])
+              ],
+              { onOpen: (how) => openItem(initiative, how), title: 'Open the initiative', extraClass: 'it-chip-epic it-chip-initiative' }
+            )
+          : null,
+        stageChip(data),
         span > 0 ? el('span', { class: 'it-span', text: span === 1 ? 'in 1 project' : `spans ${span} projects` }) : null
       ])
     ]),

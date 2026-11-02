@@ -531,3 +531,90 @@ export function replacementStatus(statuses, uid) {
   const index = group.indexOf(leaving)
   return group[index + 1] ?? group[index - 1] ?? statuses.find((status) => status.isDefault && status.uid !== uid) ?? statuses.find((status) => status.uid !== uid) ?? null
 }
+
+// ---------------------------------------------------------------------------
+// Sequences
+
+/**
+ * A sequence as rows across its stages: an initiative's by epic, an epic's by
+ * project. A lane holds, for each stage, what is in it of that epic or
+ * project, in order. Lanes come in the order their work starts: the first
+ * stage they have anything in, then the order of it there. With `focus`, an
+ * epic's ID, only that epic's lane, there even when it is in no stage.
+ *
+ * @template {{ id: string, kind: string, epic: { id: string } | null, project: { uid: number, name: string, colour: string } }} E
+ * @template {{ id: string }} P
+ * @param {{ owner: { kind: string }, stages: { items: E[] }[], epics: P[] }} plan
+ * @param {string | null} [focus]
+ * @returns {{ key: string, epic: P | null, project: E['project'] | null, cells: E[][] }[]}
+ */
+export function sequenceLanes(plan, focus = null) {
+  /** @type {Map<string, { key: string, epic: P | null, project: E['project'] | null, cells: E[][] }>} */
+  const lanes = new Map()
+  const byInitiative = plan.owner.kind === 'initiative'
+  const lane = (/** @type {string} */ key, /** @type {P | null} */ epic, /** @type {E['project'] | null} */ project) => {
+    let found = lanes.get(key)
+    if (found === undefined) {
+      found = { key, epic, project, cells: plan.stages.map(() => []) }
+      lanes.set(key, found)
+    }
+    return found
+  }
+  if (focus !== null) lane(`epic ${focus}`, plan.epics.find((epic) => epic.id === focus) ?? null, null)
+  plan.stages.forEach((stage, index) => {
+    for (const entry of stage.items) {
+      const epicId = entry.kind === 'epic' ? entry.id : (entry.epic?.id ?? null)
+      if (focus !== null && epicId !== focus) continue
+      const found = byInitiative
+        ? lane(`epic ${epicId}`, plan.epics.find((epic) => epic.id === epicId) ?? null, null)
+        : lane(`project ${entry.project.uid}`, null, entry.project)
+      found.cells[index].push(entry)
+    }
+  })
+  return [...lanes.values()]
+}
+
+/**
+ * The waits a sequence puts the wrong way round, by the ID of each item in
+ * one: what it waits on in a later stage, and what waits on it from an
+ * earlier one.
+ *
+ * @param {{ item: string, stage: number, waitsOn: string, waitsOnStage: number }[]} conflicts
+ * @returns {Map<string, string[]>} lines like "Waits on HELM-95, in stage 4"
+ */
+export function conflictNotes(conflicts) {
+  /** @type {Map<string, string[]>} */
+  const notes = new Map()
+  const add = (/** @type {string} */ id, /** @type {string} */ line) => notes.set(id, [...(notes.get(id) ?? []), line])
+  for (const conflict of conflicts) {
+    add(conflict.item, `Waits on ${conflict.waitsOn}, in stage ${conflict.waitsOnStage}`)
+    add(conflict.waitsOn, `${conflict.item} waits on it from stage ${conflict.stage}`)
+  }
+  return notes
+}
+
+/**
+ * Where a dragged item goes in a stage's cell: before the first item whose
+ * middle is below the pointer, or last. Null for last.
+ *
+ * @param {{ uid: number, top: number, height: number }[]} items the cell's items as drawn, top to bottom
+ * @param {number} y the pointer
+ * @param {number} dragged the item being dragged, which is not a place to go before
+ * @returns {number | null} the uid to go before
+ */
+export function dropBefore(items, y, dragged) {
+  for (const item of items) {
+    if (item.uid === dragged) continue
+    if (y < item.top + item.height / 2) return item.uid
+  }
+  return null
+}
+
+/**
+ * "2", "2 and 3", "2, 3 and 5".
+ *
+ * @param {string[]} words
+ */
+export function listed(words) {
+  return words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
+}

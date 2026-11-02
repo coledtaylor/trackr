@@ -3,8 +3,8 @@
   "apiVersion": 1,
   "id": "trackr",
   "name": "Trackr",
-  "version": "0.1.2",
-  "description": "Portfolios, projects, epics and tasks, kept in one SQLite file on this computer, with tools for Claude Code sessions.",
+  "version": "0.2.0",
+  "description": "Portfolios, projects, initiatives, epics and tasks, and the order they are done in, kept in one SQLite file on this computer, with tools for Claude Code sessions.",
   "icon": "icon.svg",
   "pageStrip": true,
   "sessions": ["start", "list"],
@@ -47,10 +47,10 @@
   },
   "background": "pages/background.html",
   "agent": {
-    "instructions": "Work tracking on this computer: portfolios > projects > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. Its References are the designs, docs, artifacts and files the work follows, each with a use line: read the ones whose use fits what you are about to do, with the tool for their kind. When work comes from a design or doc, add it to the references of the task, epic, project or portfolio it governs, with a use line, rather than copying it into the description; set key when everything under that should see it. If a change makes a referenced doc wrong, update the doc or say so in the handoff. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. There is no delete: set an item to Cancelled.",
+    "instructions": "Work tracking on this computer: portfolios > projects > initiatives > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. Its References are the designs, docs, artifacts and files the work follows, each with a use line: read the ones whose use fits what you are about to do, with the tool for their kind. When work comes from a design or doc, add it to the references of the task, epic, project or portfolio it governs, with a use line, rather than copying it into the description; set key when everything under that should see it. If a change makes a referenced doc wrong, update the doc or say so in the handoff. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. An initiative groups connected epics across projects and holds their sequence: the stages the work is done in, first to last, each with a goal. When a plan spans epics, make the initiative and its stages in the same create; an epic outside an initiative can hold a sequence of its own tasks. Put new work in its stage, keep the stages true when the plan changes, and pick next work from the earliest stage that is not done. There is no delete: set an item to Cancelled.",
     "tools": {
       "find": {
-        "description": "Lists items one line each, next up first: ID, status, priority, title, epic, criteria done, what it waits on, the session on it. With no arguments: open items in the project of this session's folder. Filters combine.",
+        "description": "Lists items one line each, next up first: ID, status, priority, title, epic or initiative, stage, criteria done, what it waits on, the session on it. Next up first is work under way, then the more urgent, then the earlier stage. With no arguments: open items in the project of this session's folder. Filters combine.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -61,6 +61,10 @@
             "portfolio": {
               "type": "string",
               "description": "A portfolio key, like TC: every project in it."
+            },
+            "initiative": {
+              "type": "string",
+              "description": "An initiative ID: its epics and their tasks."
             },
             "epic": {
               "type": "string",
@@ -96,7 +100,7 @@
         }
       },
       "get": {
-        "description": "Everything about one or more items: status, project and folder, session, dependencies, links, description, references (its own, then the key ones of its epic, project and portfolio), acceptance criteria (numbered), where it stands (done, left, next) and the latest log lines. An epic also lists its tasks by project. A portfolio key or project name gives its projects or folders, its open work and its references.",
+        "description": "Everything about one or more items: status, project and folder, session, the stage it is in, dependencies, links, description, references (its own, then the key ones of its epic, initiative, project and portfolio), acceptance criteria (numbered), where it stands (done, left, next) and the latest log lines. An epic also lists its tasks by project with their stages; an initiative lists its epics and its sequence, stage by stage, with what is in no stage and what the order puts before something it waits on. A portfolio key or project name gives its projects or folders, its open initiatives, its open work and its references.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -118,7 +122,7 @@
         }
       },
       "create": {
-        "description": "Creates portfolios, projects, epics and tasks in one call and replies with their keys and IDs. Portfolios are made first, then projects, then epics and tasks, so an item can name a project made in the same call. A portfolio (kind portfolio: key, name, description) starts with the default statuses and priorities. A project (kind project: portfolio, name, colour, folders) goes in the portfolio whose key it names; a session started in one of its folders lands in it. Epics and tasks can name each other by a temporary ref before they have IDs: epic and waitsOn take a ref or an ID. project defaults to the epic's, then to this session's folder's project. status and priority default to the portfolio's defaults.",
+        "description": "Creates portfolios, projects, initiatives, epics and tasks in one call and replies with their keys and IDs. Portfolios are made first, then projects, then the items, so an item can name a project made in the same call. A portfolio (kind portfolio: key, name, description) starts with the default statuses and priorities. A project (kind project: portfolio, name, colour, folders) goes in the portfolio whose key it names; a session started in one of its folders lands in it. An initiative groups connected epics across projects; an epic names its initiative, a task its epic. Items can name each other by a temporary ref before they have IDs: initiative, epic, waitsOn and a stage's items take a ref or an ID. stages gives an initiative (or an epic outside one) its sequence; stage puts one epic or task in a stage of its sequence. project defaults to the epic's or initiative's, then to this session's folder's project. status and priority default to the portfolio's defaults.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -136,6 +140,7 @@
                     "enum": [
                       "task",
                       "epic",
+                      "initiative",
                       "project",
                       "portfolio"
                     ],
@@ -143,14 +148,53 @@
                   },
                   "project": {
                     "type": "string",
-                    "description": "Epics and tasks: a project name, or KEY/Name."
+                    "description": "Initiatives, epics and tasks: a project name, or KEY/Name. An initiative's and an epic's is their home; their work can be in any project of the portfolio."
+                  },
+                  "initiative": {
+                    "type": "string",
+                    "description": "Epics: the initiative it is in, a ref or an ID."
                   },
                   "epic": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Tasks: the epic it is in, a ref or an ID."
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "description": "What the stage is, like \"Desktop on the host\"."
+                        },
+                        "goal": {
+                          "type": "string",
+                          "description": "What is true when it is done, in a sentence."
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Refs or IDs, in the order they are done: an initiative's epics (the whole epic) or their tasks; an epic's tasks."
+                        }
+                      },
+                      "required": [
+                        "title"
+                      ]
+                    },
+                    "description": "Initiatives, and epics outside one: the sequence, the stages the work is done in, first to last. An item is in one stage; a task is in its epic's stage unless it is in one of its own."
+                  },
+                  "stage": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ],
+                    "description": "Epics in an initiative, and tasks: the stage of their sequence they are done in, by number (1 is the first) or title. It goes last in the stage."
                   },
                   "title": {
                     "type": "string",
-                    "description": "Epics and tasks."
+                    "description": "Initiatives, epics and tasks."
                   },
                   "description": {
                     "type": "string",
@@ -284,7 +328,7 @@
         }
       },
       "update": {
-        "description": "Changes several items in one call: fields, acceptance criteria, the handoff, a log line, links, references and dependencies. Portfolios and projects take only references. Criteria numbers are as get shows them. Replies one line per item, then what became ready. Setting a task to an active status records this session on it.",
+        "description": "Changes several items in one call: fields, acceptance criteria, the handoff, a log line, links, references, dependencies, an epic's initiative, the stage an epic or task is in, and a whole sequence. Portfolios and projects take only references. Criteria numbers are as get shows them. Replies one line per item, then what became ready, then what needs a look: a stage that puts work before something it waits on, work left out of a sequence. Setting a task to an active status records this session on it. An epic that joins an initiative brings its stages to the end of the initiative's; work that leaves an initiative or epic leaves its stage.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -318,7 +362,49 @@
                       "string",
                       "null"
                     ],
-                    "description": "An epic ID, or null to take it out of its epic."
+                    "description": "Tasks: an epic ID, or null to take it out of its epic."
+                  },
+                  "initiative": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Epics: an initiative ID, or null to take it out of its initiative."
+                  },
+                  "stage": {
+                    "type": [
+                      "integer",
+                      "string",
+                      "null"
+                    ],
+                    "description": "Epics in an initiative, and tasks: the stage of their sequence they are done in, by number (1 is the first) or title, going last in it; null takes it out of its stage."
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "description": "What the stage is, like \"Desktop on the host\"."
+                        },
+                        "goal": {
+                          "type": "string",
+                          "description": "What is true when it is done, in a sentence."
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "IDs, in the order they are done: an initiative's epics (the whole epic) or their tasks; an epic's tasks."
+                        }
+                      },
+                      "required": [
+                        "title"
+                      ]
+                    },
+                    "description": "Initiatives, and epics outside one: the whole sequence, first stage to last, replacing the one it had. get shows the current one to start from."
                   },
                   "ac": {
                     "type": "object",

@@ -333,6 +333,14 @@ body {
   color: var(--helm-fg-muted);
 }
 
+.jrow-icon {
+  width: 8px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  color: var(--helm-accent);
+}
+
 .jrow[aria-current='true'] .work-ellip {
   color: var(--helm-fg);
 }

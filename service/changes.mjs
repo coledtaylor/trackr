@@ -15,10 +15,13 @@ const DESCRIBE = {
   title: () => 'title',
   description: () => 'description',
   project: (change) => `moved ${change.from} -> ${change.to}`,
-  epic: (change) => `epic ${change.from ?? 'none'} -> ${change.to ?? 'none'}`
+  epic: (change) => `epic ${change.from ?? 'none'} -> ${change.to ?? 'none'}`,
+  initiative: (change) => `initiative ${change.from ?? 'none'} -> ${change.to ?? 'none'}`,
+  unplaced: (change) => `${change.to} more out of the sequence`,
+  stage: (change) => `stage ${change.from ?? 'none'} -> ${change.to ?? 'none'}`
 }
 
-const ORDER = ['status', 'priority', 'title', 'description', 'project', 'epic']
+const ORDER = ['status', 'priority', 'title', 'description', 'project', 'epic', 'initiative', 'unplaced', 'stage']
 
 /**
  * The changes `updateItem` reports, as words, status first.

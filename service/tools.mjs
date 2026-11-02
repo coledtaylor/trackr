@@ -29,6 +29,7 @@ import { unshadowed } from './overview.mjs'
 /** @typedef {import('./store.mjs').InheritedReference} InheritedReference */
 /** @typedef {import('./store.mjs').RefKind} RefKind */
 /** @typedef {import('./store.mjs').RefOwner} RefOwner */
+/** @typedef {import('./plan.mjs').Plan} Plan */
 /** @typedef {import('./folders.mjs').PathState} PathState */
 /** @typedef {{ kind: RefKind, target: string, title?: string, use?: string, key?: boolean }} ReferenceInput */
 /** @typedef {{ cwd: string, home: string }} Paths where a file written as `~/…` or relative is read from */
@@ -221,7 +222,7 @@ class Context {
  * @param {Record<string, unknown>} args
  */
 function find(context, args) {
-  only(args, ['project', 'portfolio', 'epic', 'status', 'text', 'ready', 'limit'], 'find')
+  only(args, ['project', 'portfolio', 'initiative', 'epic', 'status', 'text', 'ready', 'limit'], 'find')
   const { store } = context
   /** @type {Parameters<WorkStore['findItems']>[0]} */
   const filter = {}
@@ -236,9 +237,14 @@ function find(context, args) {
     crossesProjects = false
   } else if (args.epic !== undefined) {
     const epic = store.getItem(stringArg(args.epic, 'epic'))
-    if (epic.kind !== 'epic') throw invalid(`${epic.id} is a task, not an epic.`)
+    if (epic.kind !== 'epic') throw invalid(`${epic.id} is ${article(epic.kind)}, not an epic.${epic.kind === 'initiative' ? ' Pass it as initiative.' : ''}`)
     filter.epic = epic.uid
     scope = `epic ${epic.id} ${epic.title}`
+  } else if (args.initiative !== undefined) {
+    const initiative = store.getItem(stringArg(args.initiative, 'initiative'))
+    if (initiative.kind !== 'initiative') throw invalid(`${initiative.id} is ${article(initiative.kind)}, not an initiative.${initiative.kind === 'epic' ? ' Pass it as epic.' : ''}`)
+    filter.initiative = initiative.uid
+    scope = `initiative ${initiative.id} ${initiative.title}`
   } else if (args.portfolio !== undefined) {
     const portfolio = store.getPortfolio(stringArg(args.portfolio, 'portfolio'))
     filter.portfolio = portfolio.uid
@@ -294,16 +300,18 @@ function find(context, args) {
 
 /**
  * One line for one item, as find lists it:
- * TC-123 In progress · High · Deleting a view keeps its history · epic TC-118 · AC 3/4 · waits on TC-121 · session saved views s3
+ * TC-123 In progress · High · Deleting a view keeps its history · epic TC-118 · stage 2 · AC 3/4 · waits on TC-121 · session saved views s3
  *
  * @param {Context} context
  * @param {ItemSummary} item
  * @param {{ project: boolean }} show
  */
 function itemLine(context, item, show) {
-  const parts = [`${item.id}${item.kind === 'epic' ? ' epic' : ''} ${item.status.name}`, item.priority.name, item.title]
+  const parts = [`${item.id}${item.kind === 'task' ? '' : ` ${item.kind}`} ${item.status.name}`, item.priority.name, item.title]
   if (show.project) parts.push(context.project(item.project.uid).name)
   if (item.epic) parts.push(`epic ${item.epic.id}`)
+  else if (item.initiative) parts.push(`initiative ${item.initiative.id}`)
+  if (item.stage) parts.push(`stage ${item.stage.n}`)
   if (item.criteria.total > 0) parts.push(`AC ${item.criteria.done}/${item.criteria.total}`)
   if (item.waitingOn.length > 0) parts.push(`waits on ${item.waitingOn.join(', ')}`)
   if (item.session) parts.push(`session ${item.session.name}`)
@@ -353,15 +361,20 @@ function get(context, args) {
  * @param {Item} item
  */
 function detail(context, item) {
+  const { store } = context
   const lines = [`${item.id} ${item.title}`]
   const facts = [item.kind, item.status.name, item.priority.name, context.projectLabel(item.project.uid)]
   if (item.epic) facts.push(`epic ${item.epic.id} ${item.epic.title}`)
+  if (item.initiative) facts.push(item.kind === 'epic' ? `initiative ${item.initiative.id} ${item.initiative.title}` : `initiative ${item.initiative.id}`)
+  if (item.epics) facts.push(plural(item.epics.length, 'epic'))
   if (item.tasks) {
     const done = item.tasks.filter((task) => task.status.group === 'done').length
-    facts.push(`${done} of ${item.tasks.length} task${item.tasks.length === 1 ? '' : 's'} done`)
+    facts.push(`${done} of ${plural(item.tasks.length, 'task')} done`)
     if (item.spans && item.spans.length > 1) facts.push(`spans ${item.spans.join(', ')}`)
   }
   lines.push(facts.join(SEP))
+  const placement = item.kind === 'initiative' ? null : store.placementOf(item.uid)
+  if (placement !== null && placement.stages.length > 0) lines.push(stageLine(item, placement))
   if (item.session) lines.push(`session: ${item.session.name}${item.session.activeAt ? `, last active ${context.when(item.session.activeAt)}` : ''}`)
   const related = (/** @type {ItemSummary[]} */ list) =>
     list.map((other) => `${other.id} ${other.status.name} (${context.project(other.project.uid).name})`).join(', ')
@@ -371,7 +384,24 @@ function detail(context, item) {
 
   if (item.description) lines.push('', '## Description', item.description)
   lines.push(...referencesSection(context, item.refs, context.store.inheritedRefs(item.uid)))
-  if (item.tasks && item.tasks.length > 0) {
+  // The sequence an initiative or epic page shows: its own, or for an epic
+  // in an initiative the initiative's.
+  const plan = item.kind === 'task' ? null : store.planOf(item.kind === 'epic' && item.initiative ? item.initiative.id : item.uid)
+  const stages = plan === null ? new Map() : stagesByItem(plan)
+  if (item.epics) {
+    lines.push('', '## Epics')
+    if (item.epics.length === 0) lines.push('None yet. An epic joins with update initiative, or is made with initiative set.')
+    for (const epic of item.epics) {
+      const tasks = (item.tasks ?? []).filter((task) => task.epic?.id === epic.id && task.status.group !== 'closed')
+      const done = tasks.filter((task) => task.status.group === 'done').length
+      const parts = [`${epic.id} ${epic.status.name}`, epic.priority.name, epic.title, context.project(epic.project.uid).name]
+      parts.push(tasks.length === 0 ? 'no tasks yet' : `${done} of ${plural(tasks.length, 'task')} done`)
+      const stage = stages.get(epic.id)
+      if (stage !== undefined) parts.push(`stage ${stage}`)
+      lines.push(parts.join(SEP))
+    }
+  }
+  if (item.kind === 'epic' && item.tasks && item.tasks.length > 0) {
     lines.push('', '## Tasks')
     /** @type {Map<string, ItemSummary[]>} */
     const byProject = new Map()
@@ -383,12 +413,24 @@ function detail(context, item) {
       lines.push(name)
       for (const task of tasks) {
         const parts = [`${task.id} ${task.status.name}`, task.priority.name, task.title]
+        const stage = stages.get(task.id)
+        if (stage !== undefined) parts.push(`stage ${stage}`)
         if (task.criteria.total > 0) parts.push(`AC ${task.criteria.done}/${task.criteria.total}`)
         if (task.waitingOn.length > 0) parts.push(`waits on ${task.waitingOn.join(', ')}`)
         if (task.session) parts.push(`session ${task.session.name}`)
         lines.push(`  ${parts.join(SEP)}`)
       }
     }
+  }
+  if (plan !== null && plan.owner.id === item.id && (item.kind === 'initiative' || plan.stages.length > 0)) lines.push(...sequenceSection(context, plan))
+  else if (plan !== null && plan.owner.id !== item.id && plan.stages.length > 0) {
+    const holding = plan.stages.filter((stage) => stage.items.some((entry) => entry.id === item.id || entry.epic?.id === item.id)).map((stage) => stage.n)
+    lines.push(
+      '',
+      holding.length === 0
+        ? `Its work is in no stage of ${plan.owner.id}'s sequence yet (get ${plan.owner.id} shows it).`
+        : `Its work is in ${holding.length === 1 ? 'stage' : 'stages'} ${listed(holding.map(String))} of ${plan.owner.id}'s sequence of ${plural(plan.stages.length, 'stage')} (get ${plan.owner.id} shows it).`
+    )
   }
   if (item.criteriaList.length > 0) {
     lines.push('', `## Acceptance criteria ${item.criteria.done}/${item.criteria.total}`)
@@ -406,6 +448,131 @@ function detail(context, item) {
     }
   }
   return lines.join('\n')
+}
+
+/**
+ * Where an epic or task sits in the sequence it is in:
+ * stage: 2 of 5, Desktop on the host, in the sequence of HELM-123
+ * stage: none of the 5 in the sequence of HELM-123; update stage puts it in one
+ *
+ * @param {Item} item
+ * @param {NonNullable<ReturnType<WorkStore['placementOf']>>} placement
+ */
+function stageLine(item, placement) {
+  const of = `the sequence of ${placement.owner.id}`
+  const count = placement.stages.length
+  if (placement.stage === null) return `stage: none of the ${count} in ${of}; update stage puts it in one`
+  const via = placement.stage.viaEpic && item.epic ? `, with the rest of epic ${item.epic.id}` : ''
+  return `stage: ${placement.stage.n} of ${count}, ${placement.stage.title}, in ${of}${via}`
+}
+
+/**
+ * The stage each item of a sequence is in, by ID: its own, else for a task
+ * its epic's.
+ *
+ * @param {Plan} plan
+ * @returns {Map<string, number>}
+ */
+function stagesByItem(plan) {
+  /** @type {Map<string, number>} */
+  const stages = new Map()
+  for (const stage of plan.stages) {
+    for (const entry of stage.items) {
+      stages.set(entry.id, stage.n)
+      for (const task of entry.rest?.tasks ?? []) stages.set(task, stage.n)
+    }
+  }
+  return stages
+}
+
+const STATE_WORDS = { empty: 'empty', 'not-started': 'not started', active: 'under way', done: 'done' }
+const UNPLACED_SHOWN = 30
+const CONFLICTS_SHOWN = 20
+
+/**
+ * A sequence, stage by stage: each stage with how far along it is and its
+ * goal, then what is in it, a line each. A finished stage is one line. Then
+ * the open work in no stage and the waits its order puts the wrong way round.
+ *
+ * ## Sequence: 3 stages, stage 2 under way
+ * 1 Foundation · done, 4 of 4 · goal: Sync runs end to end
+ * 2 Ship · under way, 1 of 3 · goal: In the store
+ *   TC-12 epic Backlog · Brand · its other 2 tasks, 0 done
+ *   TC-14 In progress · Release notes · session release s1
+ * Not in a stage, 2: TC-20, TC-21. update stage puts one in a stage; stages rewrites the sequence.
+ * Out of order: TC-14 (stage 2) waits on TC-30 (stage 3)
+ *
+ * @param {Context} context
+ * @param {Plan} plan
+ * @returns {string[]} lines, the first one blank
+ */
+function sequenceSection(context, plan) {
+  if (plan.stages.length === 0) {
+    return ['', '## Sequence', 'No stages yet. update with stages: [{title, goal, items}] gives it one: what is done first, then next.']
+  }
+  const current =
+    plan.current !== null ? `stage ${plan.current} under way` : plan.stages.every((stage) => stage.state === 'empty') ? 'nothing in a stage yet' : 'every stage done'
+  const lines = ['', `## Sequence: ${plural(plan.stages.length, 'stage')}${current ? `, ${current}` : ''}`]
+  for (const stage of plan.stages) {
+    const parts = [`${stage.n} ${stage.title}`, stage.state === 'empty' ? 'empty' : `${STATE_WORDS[stage.state]}, ${stage.done} of ${stage.total}`]
+    if (stage.goal) parts.push(`goal: ${stage.goal.replace(/\s*\n\s*/g, ' ')}`)
+    lines.push(parts.join(SEP))
+    if (stage.state === 'done') continue
+    for (const entry of stage.items) {
+      const head = [`  ${entry.id}${entry.kind === 'epic' ? ' epic' : ''} ${entry.status.name}`, entry.title]
+      if (entry.rest) {
+        const placedAlone = plan.stages.some((other) => other.items.some((candidate) => candidate.epic?.id === entry.id))
+        head.push(
+          entry.rest.tasks.length > 0
+            ? `${placedAlone ? 'its other' : 'all'} ${plural(entry.rest.tasks.length, 'task')}, ${entry.rest.done} done`
+            : placedAlone
+              ? 'every task in a stage of its own'
+              : 'no tasks yet'
+        )
+      }
+      if (entry.waitingOn.length > 0) head.push(`waits on ${entry.waitingOn.join(', ')}`)
+      if (entry.session) head.push(`session ${entry.session.name}`)
+      lines.push(head.join(SEP))
+    }
+  }
+  if (plan.unplaced.length > 0) {
+    const shown = plan.unplaced.slice(0, UNPLACED_SHOWN).map((item) => item.id)
+    const more = plan.unplaced.length - shown.length
+    lines.push(`Not in a stage, ${plan.unplaced.length}: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}. update stage puts one in a stage; stages rewrites the sequence.`)
+  }
+  for (const conflict of plan.conflicts.slice(0, CONFLICTS_SHOWN)) {
+    lines.push(`Out of order: ${conflict.item} (stage ${conflict.stage}) waits on ${conflict.waitsOn} (stage ${conflict.waitsOnStage})`)
+  }
+  if (plan.conflicts.length > CONFLICTS_SHOWN) lines.push(`${plan.conflicts.length - CONFLICTS_SHOWN} more out of order.`)
+  return lines
+}
+
+/**
+ * "3 tasks", "1 epic".
+ *
+ * @param {number} n
+ * @param {string} noun
+ */
+function plural(n, noun) {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`
+}
+
+/**
+ * "2", "2 and 3", "2, 3 and 5".
+ *
+ * @param {string[]} words
+ */
+function listed(words) {
+  return words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
+}
+
+/**
+ * "an initiative", "an epic", "a task".
+ *
+ * @param {string} kind
+ */
+function article(kind) {
+  return kind === 'task' ? 'a task' : `an ${kind}`
 }
 
 /** @param {{ kind: string, value: string, label: string }} link */
@@ -430,6 +597,25 @@ function portfolioDetail(context, portfolio) {
   const projects = portfolio.projects.length > 0 ? `projects ${portfolio.projects.map((project) => project.name).join(', ')}` : 'no projects'
   lines.push(['portfolio', projects, openWork(portfolio.projects.map((project) => project.counts))].join(SEP))
   if (portfolio.description) lines.push('', '## Description', portfolio.description)
+  if (portfolio.initiatives.length > 0) {
+    lines.push('', '## Initiatives')
+    for (const initiative of portfolio.initiatives) {
+      const plan = context.store.planOf(initiative.uid)
+      const current = plan.stages.find((stage) => stage.n === plan.current)
+      const parts = [`${initiative.id} ${initiative.status.name}`, initiative.title, plural(plan.epics.length, 'epic')]
+      parts.push(`${plan.progress.done} of ${plural(plan.progress.total, 'task')} done`)
+      parts.push(
+        current
+          ? `stage ${current.n} of ${plan.stages.length}, ${current.title}`
+          : plan.stages.length === 0
+            ? 'no sequence yet'
+            : plan.stages.every((stage) => stage.state === 'empty')
+              ? `${plural(plan.stages.length, 'stage')}, nothing in them yet`
+              : `${plural(plan.stages.length, 'stage')}, every one done`
+      )
+      lines.push(parts.join(SEP))
+    }
+  }
   lines.push(...referencesSection(context, context.store.listRefs({ portfolio: portfolio.uid }), []))
   return lines.join('\n')
 }
@@ -581,20 +767,37 @@ function repeatsTarget(reference) {
 // -----------------------------------------------------------------------------
 // create
 
-const CREATE_KINDS = /** @type {const} */ (['task', 'epic', 'project', 'portfolio'])
-const CREATE_FIELDS = ['ref', 'kind', 'project', 'epic', 'title', 'description', 'status', 'priority', 'ac', 'waitsOn', 'links', 'references']
+const CREATE_KINDS = /** @type {const} */ (['task', 'epic', 'initiative', 'project', 'portfolio'])
+const CREATE_FIELDS = [
+  'ref',
+  'kind',
+  'project',
+  'initiative',
+  'epic',
+  'title',
+  'description',
+  'status',
+  'priority',
+  'ac',
+  'waitsOn',
+  'links',
+  'references',
+  'stages',
+  'stage'
+]
 const PORTFOLIO_FIELDS = ['kind', 'key', 'name', 'description', 'references']
 const PROJECT_FIELDS = ['kind', 'portfolio', 'name', 'colour', 'folders', 'references']
+const STAGE_FIELDS = ['title', 'goal', 'items']
 
 /** @typedef {{ input: Record<string, unknown>, where: string }} CreateInput */
 
 /**
- * Portfolios, projects, epics and tasks in one call. Portfolios are made
- * first, then projects, then epics and tasks, whatever order they are listed
- * in, so an item can name a project made in the same call and a project a
- * portfolio. Epics and tasks name each other with a temporary `ref` before
- * they have IDs; `epic` and `waitsOn` take a ref or an ID. All of it lands or
- * none of it does.
+ * Portfolios, projects, initiatives, epics and tasks in one call. Portfolios
+ * are made first, then projects, then the items, whatever order they are
+ * listed in, so an item can name a project made in the same call and a
+ * project a portfolio. Items name each other with a temporary `ref` before
+ * they have IDs; `initiative`, `epic`, `waitsOn` and a stage's `items` take a
+ * ref or an ID. All of it lands or none of it does.
  *
  * @param {Context} context
  * @param {Record<string, unknown>} args
@@ -714,7 +917,11 @@ function refusedAt(where, fn) {
 }
 
 /**
- * Epics and tasks, after any portfolios and projects of the same call.
+ * Initiatives, epics and tasks, after any portfolios and projects of the
+ * same call. Every item is made, then each goes in its initiative or epic and
+ * waits on what it names, then the sequences are written, then single items
+ * are put in a stage: so a stage can name an item of the same call, and an
+ * item can name a stage of a sequence made in it.
  *
  * @param {Context} context
  * @param {CreateInput[]} inputs
@@ -735,38 +942,68 @@ function createItems(context, inputs) {
     }
     const project = projectFor(context, input, refs, where)
     const references = referencesFor(context, input.references, `${where}.references`)
-    const item = store.createItem({
-      kind: /** @type {any} */ (input.kind),
-      project,
-      title: /** @type {string} */ (input.title),
-      description: /** @type {string | undefined} */ (input.description),
-      status: /** @type {string | undefined} */ (input.status),
-      priority: /** @type {string | undefined} */ (input.priority),
-      criteria: input.ac === undefined ? undefined : stringList(input.ac, `${where}.ac`),
-      links: input.links === undefined ? undefined : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`)),
-      by: session.name
-    })
+    const criteria = input.ac === undefined ? undefined : stringList(input.ac, `${where}.ac`)
+    const links = input.links === undefined ? undefined : listArg(input.links, `${where}.links`).map((link) => parseLink(link, `${where}.links`))
+    const item = refusedAt(where, () =>
+      store.createItem({
+        kind: /** @type {any} */ (input.kind),
+        project,
+        title: /** @type {string} */ (input.title),
+        description: /** @type {string | undefined} */ (input.description),
+        status: /** @type {string | undefined} */ (input.status),
+        priority: /** @type {string | undefined} */ (input.priority),
+        criteria,
+        links,
+        by: session.name
+      })
+    )
     addReferences(store, { item: item.uid }, references, `${where}.references`)
     if (ref !== null) refs.set(ref, item.uid)
     made.push({ input, where, uid: item.uid })
   }
 
   for (const { input, where, uid } of made) {
-    if (input.epic !== undefined) store.updateItem(uid, { epic: itemFrom(input.epic, refs, `${where}.epic`) })
+    if (input.initiative !== undefined) {
+      const initiative = itemFrom(input.initiative, refs, `${where}.initiative`)
+      refusedAt(where, () => store.updateItem(uid, { initiative }))
+    }
+    if (input.epic !== undefined) {
+      const epic = itemFrom(input.epic, refs, `${where}.epic`)
+      refusedAt(where, () => store.updateItem(uid, { epic }))
+    }
     if (input.waitsOn !== undefined) {
       for (const other of listArg(input.waitsOn, `${where}.waitsOn`)) store.addDependency(uid, itemFrom(other, refs, `${where}.waitsOn`))
     }
-    const item = store.getItem(uid, { logLimit: 0 })
-    if (item.status.group === 'active') store.claim(uid, session)
-    store.appendLog(uid, { text: 'Created', by: session.name })
   }
 
-  return createReply(context, made.map(({ uid }) => store.getItem(uid, { logLimit: 0 })))
+  /** @type {Map<number, Plan>} */
+  const plans = new Map()
+  for (const { input, where, uid } of made) {
+    if (input.stages === undefined) continue
+    const stages = parseStages(input.stages, refs, `${where}.stages`)
+    plans.set(uid, refusedAt(where, () => store.setPlan(uid, stages)))
+  }
+  for (const { input, where, uid } of made) {
+    if (input.stage === undefined || input.stage === null) continue
+    const stage = stageArg(input.stage, `${where}.stage`)
+    refusedAt(where, () => store.updateItem(uid, { stage }))
+  }
+
+  for (const { uid } of made) {
+    const item = store.getItem(uid, { logLimit: 0 })
+    if (item.status.group === 'active') store.claim(uid, session)
+    const plan = plans.get(uid)
+    store.appendLog(uid, { text: plan ? `Created${SEP}${sequenceSummary(plan)}` : 'Created', by: session.name })
+  }
+
+  // A plan made before a later stage put more in it is read again.
+  const finalPlans = [...plans.keys()].map((uid) => store.planOf(uid))
+  return createReply(context, made.map(({ uid }) => store.getItem(uid, { logLimit: 0 })), finalPlans)
 }
 
 /**
- * Where a new item goes: the project it names, else its epic's, else the
- * session's.
+ * Where a new item goes: the project it names, else its epic's or its
+ * initiative's, else the session's.
  *
  * @param {Context} context
  * @param {Record<string, unknown>} input
@@ -775,9 +1012,10 @@ function createItems(context, inputs) {
  */
 function projectFor(context, input, refs, where) {
   if (input.project !== undefined) return context.projectNamed(input.project).uid
-  if (input.epic !== undefined && typeof input.epic === 'string') {
-    const epic = refs.has(input.epic) ? refs.get(input.epic) : ITEM_ID.test(input.epic.trim()) ? input.epic : undefined
-    if (epic !== undefined) return context.store.getItem(epic, { logLimit: 0 }).project.uid
+  for (const parent of [input.epic, input.initiative]) {
+    if (typeof parent !== 'string') continue
+    const named = refs.has(parent) ? refs.get(parent) : ITEM_ID.test(parent.trim()) ? parent : undefined
+    if (named !== undefined) return context.store.getItem(named, { logLimit: 0 }).project.uid
   }
   const here = context.here()
   if (here) return here.project.uid
@@ -787,44 +1025,153 @@ function projectFor(context, input, refs, where) {
 }
 
 /**
- * TC-118 epic Saved views (Desktop) · TC-119, TC-120, TC-121 · spans Desktop, Reporting API
- * TC-130 Fix the crash (Desktop) · epic TC-100 · waits on TC-99
+ * TC-117 initiative Launch (Desktop) · TC-118 · sequence 3 stages, 6 items
+ * TC-118 epic Saved views (Desktop) · TC-119, TC-120, TC-121 · spans Desktop, Reporting API · initiative TC-117
+ * TC-130 Fix the crash (Desktop) · epic TC-100 · stage 2 · waits on TC-99
+ * TC-117's sequence: not in a stage, 1: TC-122. Out of order: TC-120 (stage 1) waits on TC-121 (stage 2)
  *
  * @param {Context} context
  * @param {Item[]} items
+ * @param {Plan[]} plans the sequences written in the call
  */
-function createReply(context, items) {
+function createReply(context, items, plans) {
   const epics = new Set(items.filter((item) => item.kind === 'epic').map((item) => item.id))
   const lines = []
   for (const item of items) {
     const name = context.project(item.project.uid).name
-    if (item.kind === 'epic') {
+    if (item.kind === 'initiative') {
+      const children = items.filter((other) => other.kind === 'epic' && other.initiative?.id === item.id)
+      const parts = [`${item.id} initiative ${item.title} (${name})`]
+      if (children.length > 0) parts.push(children.map((child) => child.id).join(', '))
+      const plan = plans.find((candidate) => candidate.owner.id === item.id)
+      if (plan) parts.push(sequenceSummary(plan))
+      lines.push(parts.join(SEP))
+    } else if (item.kind === 'epic') {
       const children = items.filter((other) => other.epic?.id === item.id)
       const parts = [`${item.id} epic ${item.title} (${name})`]
       if (children.length > 0) parts.push(children.map((child) => child.id).join(', '))
       const spans = context.store.getItem(item.uid, { logLimit: 0 }).spans ?? []
       if (spans.length > 1) parts.push(`spans ${spans.join(', ')}`)
+      if (item.initiative) parts.push(`initiative ${item.initiative.id}`)
+      if (item.stage) parts.push(`stage ${item.stage.n}`)
+      const plan = plans.find((candidate) => candidate.owner.id === item.id)
+      if (plan) parts.push(sequenceSummary(plan))
       lines.push(parts.join(SEP))
     } else if (!item.epic || !epics.has(item.epic.id)) {
       const parts = [`${item.id} ${item.title} (${name})`]
       if (item.epic) parts.push(`epic ${item.epic.id}`)
+      if (item.stage) parts.push(`stage ${item.stage.n}`)
       if (item.waitingOn.length > 0) parts.push(`waits on ${item.waitingOn.join(', ')}`)
       lines.push(parts.join(SEP))
     }
   }
+  for (const plan of plans) {
+    const note = planNote(plan)
+    if (note) lines.push(note)
+  }
   return lines.join('\n')
+}
+
+/**
+ * "sequence 3 stages, 6 items"
+ *
+ * @param {Plan} plan
+ */
+function sequenceSummary(plan) {
+  const placed = plan.stages.reduce((sum, stage) => sum + stage.items.length, 0)
+  return `sequence ${plural(plan.stages.length, 'stage')}, ${plural(placed, 'item')}`
+}
+
+/**
+ * What a sequence just written leaves for a look: the open work in no stage
+ * and the waits it puts the wrong way round. Null when there is neither.
+ *
+ * TC-117's sequence: not in a stage, 1: TC-122. Out of order: TC-120 (stage 1) waits on TC-121 (stage 2)
+ *
+ * @param {Plan} plan
+ * @returns {string | null}
+ */
+function planNote(plan) {
+  /** @type {string[]} */
+  const parts = []
+  if (plan.unplaced.length > 0) {
+    const shown = plan.unplaced.slice(0, UNPLACED_SHOWN).map((item) => item.id)
+    const more = plan.unplaced.length - shown.length
+    parts.push(`not in a stage, ${plan.unplaced.length}: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}`)
+  }
+  if (plan.conflicts.length > 0) {
+    const shown = plan.conflicts.slice(0, CONFLICTS_SHOWN).map((conflict) => `${conflict.item} (stage ${conflict.stage}) waits on ${conflict.waitsOn} (stage ${conflict.waitsOnStage})`)
+    const more = plan.conflicts.length - shown.length
+    parts.push(`out of order: ${shown.join(', ')}${more > 0 ? ` and ${more} more` : ''}`)
+  }
+  return parts.length === 0 ? null : `${plan.owner.id}'s sequence: ${parts.join('. ')}.`
+}
+
+/**
+ * A sequence as an agent writes one: a list of `{ title, goal, items }`,
+ * items named by ID or by a ref of this call.
+ *
+ * @param {unknown} value
+ * @param {Map<string, number> | null} refs
+ * @param {string} where
+ * @returns {{ title: string, goal?: string, items: (number | string)[] }[]}
+ */
+function parseStages(value, refs, where) {
+  return listArg(value, where).map((entry, index) => {
+    const at = `${where}[${index}]`
+    const stage = objectArg(entry, at)
+    only(stage, STAGE_FIELDS, at)
+    return {
+      title: stringArg(stage.title, `${at}.title`),
+      goal: stage.goal === undefined ? undefined : textArg(stage.goal, `${at}.goal`),
+      items: stage.items === undefined ? [] : listArg(stage.items, `${at}.items`).map((item, k) => itemFrom(item, refs, `${at}.items[${k}]`))
+    }
+  })
+}
+
+/**
+ * A stage as an agent names one: its number, or its title. The store takes
+ * a number as a uid, so a stage number goes to it as text.
+ *
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {string | null}
+ */
+function stageArg(value, where) {
+  if (value === null) return null
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1) return String(value)
+  if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  throw invalid(`${where} is a stage's number (1 is the first), its title, or null to take it out of its stage.`)
 }
 
 // -----------------------------------------------------------------------------
 // update
 
-const UPDATE_FIELDS = ['id', 'title', 'description', 'status', 'priority', 'project', 'epic', 'ac', 'handoff', 'log', 'links', 'references', 'waitsOn']
+const UPDATE_FIELDS = [
+  'id',
+  'title',
+  'description',
+  'status',
+  'priority',
+  'project',
+  'initiative',
+  'epic',
+  'stage',
+  'stages',
+  'ac',
+  'handoff',
+  'log',
+  'links',
+  'references',
+  'waitsOn'
+]
 const OWNER_UPDATE_FIELDS = ['id', 'references']
 
 /**
  * Several items in one call: fields, criteria, handoff, a log line, links,
- * references, dependencies; and the references of portfolios and projects.
- * One line per item, then what became ready. All of it lands or none of it
+ * references, dependencies, an epic's initiative, a stage, a whole sequence;
+ * and the references of portfolios and projects. One line per item, then
+ * what became ready, then what needs a look. All of it lands or none of it
  * does.
  *
  * @param {Context} context
@@ -879,9 +1226,31 @@ function updateOne(context, input, where) {
     status: /** @type {string | undefined} */ (input.status),
     priority: /** @type {string | undefined} */ (input.priority),
     project: input.project === undefined ? undefined : context.projectNamed(input.project).uid,
-    epic: input.epic === undefined ? undefined : input.epic === null ? null : itemFrom(input.epic, null, `${where}.epic`)
+    epic: input.epic === undefined ? undefined : input.epic === null ? null : itemFrom(input.epic, null, `${where}.epic`),
+    initiative: input.initiative === undefined ? undefined : input.initiative === null ? null : itemFrom(input.initiative, null, `${where}.initiative`),
+    stage: input.stage === undefined ? undefined : stageArg(input.stage, `${where}.stage`)
   })
   const parts = changeParts(changes)
+  /** @type {string[]} */
+  const notes = []
+
+  // A stage that puts it before what it waits on, or after what waits on it.
+  if (changes.some((change) => change.field === 'stage')) {
+    const placement = store.placementOf(before.uid)
+    if (placement !== null) {
+      const conflicts = store.planOf(placement.owner.uid).conflicts.filter((conflict) => conflict.item === before.id || conflict.waitsOn === before.id)
+      if (conflicts.length > 0) {
+        notes.push(`${before.id} is out of order: ${conflicts.map((conflict) => `${conflict.item} (stage ${conflict.stage}) waits on ${conflict.waitsOn} (stage ${conflict.waitsOnStage})`).join(', ')}.`)
+      }
+    }
+  }
+  if (input.stages !== undefined) {
+    const stages = parseStages(input.stages, null, `${where}.stages`)
+    const plan = refusedAt(where, () => store.setPlan(before.uid, stages))
+    parts.push(sequenceSummary(plan))
+    const note = planNote(plan)
+    if (note) notes.push(note)
+  }
 
   const after = store.getItem(before.uid, { logLimit: 0 })
   const statusChanged = after.status.uid !== before.status.uid
@@ -948,11 +1317,12 @@ function updateOne(context, input, where) {
 
   // The session on an item: taken when it goes active, let go when it stops
   // being active, and kept fresh while the same session works on it.
-  let note = null
   if (statusChanged && after.status.group === 'active') {
     const { previous } = store.claim(before.uid, session)
     if (previous) {
-      note = `${before.id} was being worked on by ${previous.name}${previous.activeAt ? ` (last active ${context.when(previous.activeAt)})` : ''}. It is recorded as this session's now; check with the user if that session may still be running.`
+      notes.unshift(
+        `${before.id} was being worked on by ${previous.name}${previous.activeAt ? ` (last active ${context.when(previous.activeAt)})` : ''}. It is recorded as this session's now; check with the user if that session may still be running.`
+      )
     }
   } else if (statusChanged && after.status.group !== 'active') {
     if (after.session) store.release(before.uid)
@@ -966,7 +1336,7 @@ function updateOne(context, input, where) {
   const text = logged ? (summary ? `${logged.text}${SEP}${summary}` : logged.text) : summary
   store.appendLog(before.uid, { text, by: session.name, ref: logged?.ref })
 
-  return { line: `${before.id} ${parts.join(SEP)}`, note, ready: finished ? store.readyDependents(before.uid) : [] }
+  return { line: `${before.id} ${parts.join(SEP)}`, note: notes.length > 0 ? notes.join('\n') : null, ready: finished ? store.readyDependents(before.uid) : [] }
 }
 
 /**

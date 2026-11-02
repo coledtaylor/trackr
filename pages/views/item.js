@@ -1,14 +1,16 @@
 /// <reference types="@coledtaylor/helm-plugin-sdk/global" />
 /**
- * An epic or a task: reads what the view needs and draws `epic.js` or
- * `task.js`. Drawing again keeps an open editor's field, its focus and its
- * caret, so a session writing while the person types loses nothing.
+ * An initiative, an epic or a task: reads what the view needs and draws
+ * `initiative.js`, `epic.js` or `task.js`. Drawing again keeps an open
+ * editor's field, its focus and its caret, so a session writing while the
+ * person types loses nothing.
  */
 
 import { el, fill, redraw } from '../shared/dom.js'
 import { itemTitle, openProject, opens, rpc } from '../shared/work.js'
 import { createEditing } from './edit.js'
 import { epicParts } from './epic.js'
+import { initiativeParts } from './initiative.js'
 import { taskParts, taskState } from './task.js'
 
 /**
@@ -44,7 +46,13 @@ export function createItemView(root, uid, host) {
     if (data === null) return
     root.className = `view-item it it-is-${data.item.kind}`
     const shown = data
-    redraw(root, () => (shown.item.kind === 'epic' ? epicParts(shown, editing) : taskParts(shown, editing, state, draw)))
+    redraw(root, () =>
+      shown.item.kind === 'initiative'
+        ? initiativeParts(shown, editing, state, draw)
+        : shown.item.kind === 'epic'
+          ? epicParts(shown, editing)
+          : taskParts(shown, editing, state, draw)
+    )
   }
 
   /** @param {import('../shared/types.js').Item} item */

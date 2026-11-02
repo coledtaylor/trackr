@@ -115,11 +115,36 @@ function head(data, editing) {
               { onOpen: goEpic ?? undefined, title: 'Open the epic', extraClass: 'it-chip-epic' }
             )
           : null,
+        stageChip(data),
         item.session ? sessionHolder(item, editing) : null
       ])
     ]),
     button('Copy ID', ICONS.copy, () => void editing.copy(item.id, item.id))
   ])
+}
+
+/**
+ * The stage the task is done in, its own or its epic's, opening the
+ * sequence it is in. Nothing when it is in no stage.
+ *
+ * @param {ItemOverview} data
+ */
+export function stageChip(data) {
+  const placement = data.placement
+  if (placement === null || placement.stage === null) return null
+  const { owner, stage, stages } = placement
+  return chip(
+    [
+      lineIcon(ICONS.stages, 12, 1.9),
+      el('span', { class: 'work-ellip' }, [`Stage ${stage.n} of ${stages.length}`, el('span', { class: 'it-chip-dim', text: ` · ${stage.title}` })])
+    ],
+    {
+      onOpen: (how) => openItem(owner, how),
+      title: `${stage.viaEpic ? 'With its epic, in' : 'In'} stage ${stage.n} of the sequence of ${owner.id} ${owner.title}: ${stage.title}
+Open the sequence`,
+      extraClass: 'it-chip-stage'
+    }
+  )
 }
 
 /**
@@ -169,7 +194,7 @@ function sep() {
  * @param {Item} item
  * @param {Editing} editing
  */
-function criteriaSection(item, editing) {
+export function criteriaSection(item, editing) {
   const list = item.criteriaList
   const done = list.filter((criterion) => criterion.done).length
   const adder = lineField(editing, 'criterion.new', {
@@ -280,7 +305,7 @@ const STANDS = /** @type {const} */ ([
  * @param {TaskState} state
  * @param {() => void} redraw
  */
-function trackingSection(item, editing, state, redraw) {
+export function trackingSection(item, editing, state, redraw) {
   const handoff = item.handoff
   const editingNow = editing.isOpen('handoff')
   const save = async () => {

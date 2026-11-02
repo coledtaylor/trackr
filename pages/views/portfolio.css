@@ -297,6 +297,114 @@
   border-radius: 2px 2px 0 0;
 }
 
+/* Initiatives: a card each, with a strip of its stages */
+
+.pf-inits {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 8px;
+}
+
+.pf-init {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--helm-border);
+  border-radius: var(--helm-radius);
+  background: var(--helm-surface-raised);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pf-init:hover {
+  border-color: var(--helm-border-strong);
+}
+
+.pf-init.is-finished .pf-init-title {
+  color: var(--helm-fg-muted);
+}
+
+.pf-init-top,
+.pf-init-foot {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pf-init-icon {
+  display: flex;
+  color: var(--helm-accent);
+}
+
+.pf-init-status,
+.pf-init-counts,
+.pf-init-flag {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--helm-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-init-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-init-flag.tone-warn {
+  color: var(--helm-warn);
+}
+
+.pf-init-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--helm-fg);
+}
+
+.pf-init-strip {
+  height: 6px;
+  display: grid;
+  gap: 3px;
+}
+
+.pf-init-stage {
+  border-radius: 2px;
+  background: var(--helm-border-strong);
+}
+
+.pf-init-stage.is-done {
+  background: var(--helm-success);
+}
+
+.pf-init-stage.is-active {
+  background: linear-gradient(90deg, var(--helm-accent) var(--done, 0%), color-mix(in srgb, var(--helm-accent) 30%, transparent) var(--done, 0%));
+}
+
+.pf-init-stage.is-empty {
+  background: transparent;
+  outline: 1px dashed var(--helm-border-strong);
+  outline-offset: -1px;
+}
+
+.pf-init-stage.is-current {
+  box-shadow: 0 0 0 1px var(--helm-surface-raised), 0 0 0 2px var(--helm-accent);
+}
+
+.pf-init-now {
+  font-size: 12px;
+  color: var(--helm-fg);
+}
+
+.pf-init-none {
+  font-size: 12px;
+  color: var(--helm-fg-subtle);
+}
+
 /* Epics across projects */
 
 .pf-epics {

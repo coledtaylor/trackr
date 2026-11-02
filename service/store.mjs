@@ -25,6 +25,7 @@ import {
   inferRefKind
 } from './model.mjs'
 import { missingFiles, orderOf, placed, portfolioOverview, unshadowed } from './overview.mjs'
+import { buildPlan, initiativeOverview, stageChoices } from './plan.mjs'
 import { MIGRATIONS } from './schema.mjs'
 
 /**
@@ -33,14 +34,18 @@ import { MIGRATIONS } from './schema.mjs'
  * @typedef {{ uid: number, name: string, rank: number, isDefault: boolean }} Priority
  * @typedef {{ open: number, active: number, done: number, closed: number }} Counts
  * @typedef {{ uid: number, name: string, colour: string, folders: string[], portfolio: { uid: number, key: string, name: string }, counts: Counts }} Project
- * @typedef {{ uid: number, key: string, name: string, description: string, nextNumber: number, projects: Project[] }} PortfolioSummary
+ * @typedef {{ uid: number, id: string, title: string, status: { name: string, group: StatusGroup, colour: string, icon: string } }} InitiativeLink
+ * @typedef {{ uid: number, key: string, name: string, description: string, nextNumber: number, projects: Project[], initiatives: InitiativeLink[] }} PortfolioSummary
  * @typedef {PortfolioSummary & { statuses: Status[], priorities: Priority[] }} Portfolio
  * @typedef {{ id: string, name: string, activeAt: string | null }} SessionClaim
+ * @typedef {'initiative' | 'epic' | 'task'} ItemKind
  * @typedef {{
- *   uid: number, id: string, kind: 'epic' | 'task', title: string,
+ *   uid: number, id: string, kind: ItemKind, title: string,
  *   portfolio: { uid: number, key: string },
  *   project: { uid: number, name: string, colour: string },
  *   epic: { id: string, title: string } | null,
+ *   initiative: { id: string, title: string } | null,
+ *   stage: { uid: number, n: number, title: string } | null,
  *   status: { uid: number, name: string, group: StatusGroup, colour: string, icon: string },
  *   priority: { uid: number, name: string },
  *   criteria: { done: number, total: number },
@@ -52,7 +57,11 @@ import { MIGRATIONS } from './schema.mjs'
  * @typedef {{ uid: number, kind: string, value: string, label: string }} Link
  * @typedef {'artifact' | 'doc' | 'file' | 'url'} RefKind
  * @typedef {{ uid: number, kind: RefKind, target: string, title: string, use: string, key: boolean }} Reference
- * @typedef {Reference & { from: { level: 'epic' | 'project' | 'portfolio', uid: number, name: string } }} InheritedReference
+ * @typedef {'epic' | 'initiative' | 'project' | 'portfolio'} RefLevel
+ * @typedef {Reference & { from: { level: RefLevel, uid: number, name: string } }} InheritedReference
+ * @typedef {import('./plan.mjs').Plan} Plan
+ * @typedef {import('./plan.mjs').StageChoice} StageChoice
+ * @typedef {{ uid: number, id: string, kind: 'initiative' | 'epic', title: string }} PlanOwner
  * @typedef {{ kind?: string, target: string, title?: string, use?: string, key?: boolean }} RefInput
  * @typedef {{ kind?: string, target?: string, title?: string, use?: string, key?: boolean }} RefPatch
  * @typedef {import('./folders.mjs').PathState} PathState
@@ -64,7 +73,7 @@ import { MIGRATIONS } from './schema.mjs'
  *   criteriaList: Criterion[], links: Link[], refs: Reference[],
  *   waitsOn: ItemSummary[], blocks: ItemSummary[],
  *   handoff: Handoff | null, log: { entries: LogEntry[], total: number },
- *   tasks: ItemSummary[] | null, spans: string[] | null
+ *   epics: ItemSummary[] | null, tasks: ItemSummary[] | null, spans: string[] | null
  * }} Item
  * @typedef {{ field: string, from: string | null, to: string | null }} Change
  * @typedef {number | string} Ref
@@ -77,6 +86,8 @@ const SUMMARY_SELECT = `
          p.id AS p_id, p.key AS p_key,
          j.id AS j_id, j.name AS j_name, j.colour AS j_colour,
          e.number AS e_number, e.title AS e_title,
+         n.number AS n_number, n.title AS n_title,
+         st.id AS st_id, st.position AS st_n, st.title AS st_title,
          s.id AS s_id, s.name AS s_name, s.grp AS s_grp, s.colour AS s_colour, s.icon AS s_icon,
          r.id AS r_id, r.name AS r_name,
          (SELECT count(*) FROM criteria c WHERE c.item_id = i.id) AS c_total,
@@ -90,16 +101,24 @@ const SUMMARY_SELECT = `
     JOIN projects j ON j.id = i.project_id
     JOIN statuses s ON s.id = i.status_id
     JOIN priorities r ON r.id = i.priority_id
-    LEFT JOIN items e ON e.id = i.epic_id`
+    LEFT JOIN items e ON e.id = i.epic_id
+    LEFT JOIN items n ON n.id = coalesce(i.initiative_id, e.initiative_id)
+    LEFT JOIN stage_items si ON si.item_id = i.id
+    LEFT JOIN stages st ON st.id = si.stage_id
+    LEFT JOIN stage_items esi ON esi.item_id = i.epic_id
+    LEFT JOIN stages est ON est.id = esi.stage_id`
 
 /**
  * "Next up first": work under way, then work waiting, then finished work;
- * inside a group the more urgent first, then the status further along the
- * workflow (To do before Backlog), then the item's own place in its list.
+ * inside a group the more urgent first, then the earlier stage of its
+ * sequence (its own, else its epic's; none last), then the status further
+ * along the workflow (To do before Backlog), then its place in its stage,
+ * then the item's own place in its list.
  */
 const NEXT_UP_ORDER = `
   ORDER BY CASE s.grp WHEN 'active' THEN 0 WHEN 'not-started' THEN 1 WHEN 'done' THEN 2 ELSE 3 END,
-           r.position, s.position DESC, i.position, i.number`
+           r.position, coalesce(st.position, est.position) IS NULL, coalesce(st.position, est.position),
+           s.position DESC, si.position IS NULL, si.position, i.position, i.number`
 
 /** An item has nothing it waits on that is still open. */
 const READY = `NOT EXISTS (
@@ -165,7 +184,14 @@ export class WorkStore {
   // ---------------------------------------------------------------------------
   // Plumbing
 
-  /** @private */
+  /**
+   * Runs the migrations this database has not had, each in its own
+   * transaction. Foreign keys are off while they run, as SQLite needs to
+   * rebuild a table, and each is checked before it commits: a migration that
+   * leaves a dangling reference changes nothing.
+   *
+   * @private
+   */
   migrate() {
     const version = this.schemaVersion
     if (version > MIGRATIONS.length) {
@@ -173,11 +199,22 @@ export class WorkStore {
         `The work database is at schema ${version}, newer than this plugin knows (${MIGRATIONS.length}). Update the plugin.`
       )
     }
-    for (let index = version; index < MIGRATIONS.length; index++) {
-      this.transaction(() => {
-        this.db.exec(MIGRATIONS[index])
-        this.db.exec(`PRAGMA user_version = ${index + 1}`)
-      })
+    if (version === MIGRATIONS.length) return
+    this.db.exec('PRAGMA foreign_keys = OFF')
+    try {
+      for (let index = version; index < MIGRATIONS.length; index++) {
+        this.transaction(() => {
+          this.db.exec(MIGRATIONS[index])
+          const dangling = this.db.prepare('PRAGMA foreign_key_check').all()
+          if (dangling.length > 0) {
+            const first = /** @type {{ table: string, parent: string }} */ (dangling[0])
+            throw new Error(`Migration ${index + 1} would leave ${dangling.length} broken reference${dangling.length === 1 ? '' : 's'}, the first from ${first.table} to ${first.parent}. Nothing was changed.`)
+          }
+          this.db.exec(`PRAGMA user_version = ${index + 1}`)
+        })
+      }
+    } finally {
+      this.db.exec('PRAGMA foreign_keys = ON')
     }
   }
 
@@ -310,12 +347,34 @@ export class WorkStore {
     })
   }
 
-  /** @returns {PortfolioSummary[]} every portfolio with its projects, by key */
+  /** @returns {PortfolioSummary[]} every portfolio with its projects and open initiatives, by key */
   listPortfolios() {
     const projects = this.listProjects()
+    const initiatives = this.openInitiatives(null)
     return this.rows('SELECT * FROM portfolios ORDER BY key').map((row) => ({
       ...portfolioOf(row),
-      projects: projects.filter((project) => project.portfolio.uid === row.id)
+      projects: projects.filter((project) => project.portfolio.uid === row.id),
+      initiatives: initiatives.filter((initiative) => initiative.portfolio === row.id).map(({ portfolio, ...link }) => link)
+    }))
+  }
+
+  /**
+   * The open initiatives of one portfolio, or of all of them, next up first.
+   *
+   * @private
+   * @param {number | null} portfolioId
+   * @returns {(InitiativeLink & { portfolio: number })[]}
+   */
+  openInitiatives(portfolioId) {
+    return this.summaries(
+      `WHERE i.kind = 'initiative' AND s.grp IN ('not-started', 'active') AND (?1 IS NULL OR i.portfolio_id = ?1) ${NEXT_UP_ORDER}`,
+      [portfolioId]
+    ).map((item) => ({
+      uid: item.uid,
+      id: item.id,
+      title: item.title,
+      status: { name: item.status.name, group: item.status.group, colour: item.status.colour, icon: item.status.icon },
+      portfolio: item.portfolio.uid
     }))
   }
 
@@ -329,7 +388,8 @@ export class WorkStore {
       ...portfolioOf(row),
       statuses: this.statusesOf(row.id),
       priorities: this.prioritiesOf(row.id),
-      projects: this.listProjects(row.id)
+      projects: this.listProjects(row.id),
+      initiatives: this.openInitiatives(row.id).map(({ portfolio, ...link }) => link)
     }
   }
 
@@ -947,9 +1007,10 @@ export class WorkStore {
   // Items
 
   /**
-   * Creates an epic or a task and gives it the portfolio's next number.
+   * Creates an initiative, an epic or a task and gives it the portfolio's
+   * next number. A task may go in an epic, an epic in an initiative.
    *
-   * @param {{ kind?: 'epic' | 'task', project: Ref, portfolio?: Ref, epic?: Ref | null, title: string,
+   * @param {{ kind?: ItemKind, project: Ref, portfolio?: Ref, epic?: Ref | null, initiative?: Ref | null, title: string,
    *   description?: string, status?: Ref, priority?: Ref, criteria?: string[],
    *   links?: { kind: string, value: string, label?: string }[], refs?: RefInput[], waitsOn?: Ref[], by?: string }} input
    * @returns {Item}
@@ -957,7 +1018,7 @@ export class WorkStore {
   createItem(input) {
     return this.transaction(() => {
       const kind = input?.kind ?? 'task'
-      if (!ITEM_KINDS.includes(/** @type {any} */ (kind))) throw invalid(`kind must be epic or task, not ${String(kind)}.`)
+      if (!ITEM_KINDS.includes(/** @type {any} */ (kind))) throw invalid(`kind must be initiative, epic or task, not ${String(kind)}.`)
       const project = this.projectRow(input.project, input.portfolio)
       const title = requiredText(input.title, 'title', LIMITS.title)
       const description = optionalText(input.description, 'description', LIMITS.description) ?? ''
@@ -965,6 +1026,7 @@ export class WorkStore {
       const priority =
         input.priority === undefined ? this.defaultOption('priorities', project.portfolio_id) : this.optionRow('priorities', project.portfolio_id, input.priority)
       const epicId = input.epic == null ? null : this.epicFor(kind, project.portfolio_id, input.epic)
+      const initiativeId = input.initiative == null ? null : this.initiativeFor(kind, project.portfolio_id, input.initiative)
       const by = optionalText(input.by, 'by', LIMITS.sessionName) ?? null
       const number = Number(
         this.row('UPDATE portfolios SET next_number = next_number + 1 WHERE id = ? RETURNING next_number - 1 AS number', project.portfolio_id)
@@ -976,14 +1038,15 @@ export class WorkStore {
       const at = this.stamp()
       const uid = Number(
         this.run(
-          `INSERT INTO items (portfolio_id, number, kind, project_id, epic_id, title, description, status_id, priority_id,
+          `INSERT INTO items (portfolio_id, number, kind, project_id, epic_id, initiative_id, title, description, status_id, priority_id,
                               position, created_by, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           project.portfolio_id,
           number,
           kind,
           project.id,
           epicId,
+          initiativeId,
           title,
           description,
           status.id,
@@ -1004,7 +1067,8 @@ export class WorkStore {
 
   /**
    * Everything about one item. A task's log is its latest `logLimit` entries,
-   * oldest first; an epic also lists its tasks and the projects they are in.
+   * oldest first; an epic also lists its tasks and the projects they are in,
+   * and an initiative its epics, their tasks and the projects of both.
    * `refs` are its own references; what it inherits is `inheritedRefs`.
    *
    * @param {Ref} ref
@@ -1024,7 +1088,13 @@ export class WorkStore {
     const entries = this.rows('SELECT at, by, text, ref FROM log WHERE item_id = ? ORDER BY id DESC LIMIT ?', row.id, logLimit)
       .reverse()
       .map((entry) => ({ at: entry.at, by: entry.by, text: entry.text, ref: entry.ref }))
-    const tasks = row.kind === 'epic' ? this.summaries(`WHERE i.epic_id = ? ${NEXT_UP_ORDER}`, [row.id]) : null
+    const epics = row.kind === 'initiative' ? this.summaries(`WHERE i.initiative_id = ? ${NEXT_UP_ORDER}`, [row.id]) : null
+    const tasks =
+      row.kind === 'epic'
+        ? this.summaries(`WHERE i.epic_id = ? ${NEXT_UP_ORDER}`, [row.id])
+        : row.kind === 'initiative'
+          ? this.summaries(`WHERE i.epic_id IN (SELECT id FROM items WHERE initiative_id = ?) ${NEXT_UP_ORDER}`, [row.id])
+          : null
     return {
       ...summary,
       description: row.description,
@@ -1040,8 +1110,9 @@ export class WorkStore {
           ? null
           : { done: row.handoff_done, left: row.handoff_left, next: row.handoff_next, by: row.handoff_by, at: row.handoff_at },
       log: { entries, total },
+      epics,
       tasks,
-      spans: tasks === null ? null : spansOf(summary.project.name, tasks)
+      spans: tasks === null ? null : spansOf(summary.project.name, [...(epics ?? []), ...tasks])
     }
   }
 
@@ -1049,8 +1120,15 @@ export class WorkStore {
    * Changes an item's fields. Moving a task to another project keeps its ID;
    * the project must be in the same portfolio.
    *
+   * A task changes epic and an epic initiative here. An epic that joins an
+   * initiative brings its stages to the end of the initiative's sequence; an
+   * item that leaves the work a sequence plans leaves its stage. `stage` puts
+   * an epic or task in a stage of the sequence it is in (`stageFor`), at the
+   * end of it, or takes it out with null.
+   *
    * @param {Ref} ref
-   * @param {{ title?: string, description?: string, status?: Ref, priority?: Ref, project?: Ref, epic?: Ref | null, position?: number }} patch
+   * @param {{ title?: string, description?: string, status?: Ref, priority?: Ref, project?: Ref, epic?: Ref | null,
+   *   initiative?: Ref | null, stage?: Ref | null, position?: number }} patch
    * @returns {{ item: ItemSummary, changes: Change[] }} the item after, and each field that changed
    */
   updateItem(ref, patch) {
@@ -1107,6 +1185,13 @@ export class WorkStore {
           changes.push({ field: 'epic', from: before.epic?.id ?? null, to: epic?.id ?? null })
         }
       }
+      if (patch.initiative !== undefined) {
+        const initiativeId = patch.initiative === null ? null : this.initiativeFor(row.kind, row.portfolio_id, patch.initiative)
+        if (initiativeId !== row.initiative_id) {
+          set.initiative_id = initiativeId
+          changes.push({ field: 'initiative', from: before.initiative?.id ?? null, to: initiativeId === null ? null : this.idOf(initiativeId) })
+        }
+      }
       if (patch.position !== undefined) {
         if (typeof patch.position !== 'number' || !Number.isFinite(patch.position)) throw invalid('position must be a number.')
         set.position = patch.position
@@ -1124,13 +1209,30 @@ export class WorkStore {
         )
       }
       if (files !== null) this.storeFiles(files, this.foldersOf(/** @type {number} */ (set.project_id)))
+
+      if (set.initiative_id !== undefined && set.initiative_id !== null) this.adoptStages(row.id, /** @type {number} */ (set.initiative_id))
+      if (set.epic_id !== undefined || set.initiative_id !== undefined) {
+        const others = this.prunePlacements().filter((uid) => uid !== row.id)
+        if (others.length > 0) changes.push({ field: 'unplaced', from: null, to: String(others.length) })
+      }
+      if (patch.stage !== undefined) {
+        const stage = patch.stage === null ? null : this.stageFor(row.id, patch.stage)
+        this.placeIn(row.id, stage === null ? null : stage.id, null)
+      }
+      const after = this.summaries('WHERE i.id = ?', [row.id])[0]
+      if (after.stage?.uid !== before.stage?.uid) {
+        changes.push({ field: 'stage', from: stageLabel(before.stage), to: stageLabel(after.stage) })
+        this.touch(row.id)
+      }
       return { item: this.summaries('WHERE i.id = ?', [row.id])[0], changes }
     })
   }
 
   /**
    * Deletes an item, its criteria, links, references, log and dependencies. An epic's
-   * tasks stay, without an epic. The UI asks first; agents cancel instead.
+   * tasks stay, without an epic; an initiative's epics stay, without an
+   * initiative. A sequence goes with its owner, and what was in its stages
+   * stays. The UI asks first; agents cancel instead.
    *
    * @param {Ref} ref
    */
@@ -1138,14 +1240,17 @@ export class WorkStore {
     this.transaction(() => {
       const row = this.itemRow(ref)
       this.run('DELETE FROM items WHERE id = ?', row.id)
+      // A deleted epic's tasks lose their place in its initiative's stages.
+      this.prunePlacements()
     })
   }
 
   /**
    * Items matching a filter, next up first.
    *
-   * @param {{ portfolio?: Ref, project?: Ref, epic?: Ref, kind?: 'epic' | 'task', status?: Ref | Ref[],
+   * @param {{ portfolio?: Ref, project?: Ref, epic?: Ref, initiative?: Ref, kind?: ItemKind, status?: Ref | Ref[],
    *   groups?: StatusGroup[], open?: boolean, ready?: boolean, text?: string, limit?: number, offset?: number }} [filter]
+   *   `initiative` is its epics and their tasks
    * @returns {{ items: ItemSummary[], total: number }} the page asked for, and how many match in all
    */
   findItems(filter = {}) {
@@ -1164,12 +1269,18 @@ export class WorkStore {
     }
     if (filter.epic !== undefined) {
       const epic = this.itemRow(filter.epic)
-      if (epic.kind !== 'epic') throw invalid(`${formatId(epic.p_key, epic.number)} is a task, not an epic.`)
+      if (epic.kind !== 'epic') throw invalid(`${formatId(epic.p_key, epic.number)} is ${article(epic.kind)}, not an epic.`)
       where.push('i.epic_id = ?')
       params.push(epic.id)
     }
+    if (filter.initiative !== undefined) {
+      const initiative = this.itemRow(filter.initiative)
+      if (initiative.kind !== 'initiative') throw invalid(`${formatId(initiative.p_key, initiative.number)} is ${article(initiative.kind)}, not an initiative.`)
+      where.push('(i.initiative_id = ? OR i.epic_id IN (SELECT id FROM items WHERE initiative_id = ?))')
+      params.push(initiative.id, initiative.id)
+    }
     if (filter.kind !== undefined) {
-      if (!ITEM_KINDS.includes(/** @type {any} */ (filter.kind))) throw invalid('kind must be epic or task.')
+      if (!ITEM_KINDS.includes(/** @type {any} */ (filter.kind))) throw invalid('kind must be initiative, epic or task.')
       where.push('i.kind = ?')
       params.push(filter.kind)
     }
@@ -1216,8 +1327,9 @@ export class WorkStore {
 
   /**
    * Everything the portfolio view shows: the portfolio with its projects, the
-   * stat cards, the epics counted per project, and the tasks in progress and
-   * waiting on another task.
+   * stat cards, its initiatives with where their sequences stand, the epics
+   * counted per project, and the tasks in progress and waiting on another
+   * task.
    *
    * @param {Ref} ref key or uid
    * @param {{ home?: string, pathState?: (path: string) => PathState }} [options]
@@ -1233,6 +1345,7 @@ export class WorkStore {
     const refs = this.listRefs({ portfolio: portfolio.uid })
     return {
       ...portfolioOverview(portfolio, items, history, { now: this.now(), home: options.home ?? homedir() }),
+      initiatives: items.filter((item) => item.kind === 'initiative').map((initiative) => initiativeOverview(initiative, this.planOf(initiative.uid))),
       refs,
       missing: missingFiles(refs, options.pathState ?? pathState)
     }
@@ -1267,11 +1380,15 @@ export class WorkStore {
   }
 
   /**
-   * Everything the epic and task views show: the item with its log, what the
-   * pickers offer (the portfolio's statuses, priorities, projects and open
-   * epics), for an epic the order its tasks can be done in, the key
-   * references it inherits that its own do not name, and which of all its
-   * file references are gone (`missing`, by uid).
+   * Everything the initiative, epic and task views show: the item with its
+   * log, what the pickers offer (the portfolio's statuses, priorities,
+   * projects, open epics and open initiatives), for an epic the order its
+   * tasks can be done in, the key references it inherits that its own do not
+   * name, and which of all its file references are gone (`missing`, by uid).
+   *
+   * `plan` is the sequence an initiative or epic page draws: an initiative's
+   * own, an epic's own, or the initiative's an epic is in. `placement` is the
+   * sequence an epic or task can be put in a stage of, with its stages.
    *
    * @param {Ref} ref
    * @param {{ home?: string, logLimit?: number, pathState?: (path: string) => PathState }} [options]
@@ -1285,6 +1402,12 @@ export class WorkStore {
       `WHERE i.portfolio_id = ? AND i.kind = 'epic' AND (s.grp IN ('not-started', 'active') OR i.id = ?) ${NEXT_UP_ORDER}`,
       [owner.id, row.epic_id ?? -1]
     )
+    const initiatives = this.summaries(
+      `WHERE i.portfolio_id = ? AND i.kind = 'initiative' AND (s.grp IN ('not-started', 'active') OR i.id = ?) ${NEXT_UP_ORDER}`,
+      [owner.id, row.initiative_id ?? -1]
+    )
+    const placement = this.placementOf(row.id)
+    const plan = row.kind === 'task' ? null : this.planOf(row.kind === 'epic' ? (row.initiative_id ?? row.id) : row.id)
     let order = null
     if (row.kind === 'epic') {
       const tasks = this.rows('SELECT id FROM items WHERE epic_id = ? ORDER BY position, number', row.id).map((task) => Number(task.id))
@@ -1308,7 +1431,10 @@ export class WorkStore {
       },
       projects: this.listProjects(owner.id).map((project) => placed(project, home)),
       epics,
+      initiatives,
       order,
+      plan,
+      placement,
       inherited,
       missing: missingFiles([...item.refs, ...inherited], options.pathState ?? pathState)
     }
@@ -1351,6 +1477,7 @@ export class WorkStore {
    *
    * @param {Ref} ref
    * @param {{ title?: string, description?: string, status?: Ref, priority?: Ref, project?: Ref, epic?: Ref | null,
+   *   initiative?: Ref | null, stage?: Ref | null,
    *   waitsOn?: { add?: Ref[], remove?: Ref[] },
    *   links?: { add?: { kind: string, value: string, label?: string }[], remove?: number[] },
    *   refs?: { add?: RefInput[], edit?: (RefPatch & { uid: number })[], remove?: number[] },
@@ -1370,7 +1497,9 @@ export class WorkStore {
         status: patch.status,
         priority: patch.priority,
         project: patch.project,
-        epic: patch.epic
+        epic: patch.epic,
+        initiative: patch.initiative,
+        stage: patch.stage
       })
       const parts = changeParts(changes)
 
@@ -1430,6 +1559,439 @@ export class WorkStore {
          AND s.grp IN ('not-started', 'active') AND ${READY} ${NEXT_UP_ORDER}`,
       [row.id]
     )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sequences: the stages a piece of work is done in, in order. An initiative
+  // holds one, and so does an epic outside an initiative: the top of the work
+  // it plans. Stage n is the nth; positions run 1 to n.
+
+  /**
+   * The sequence of an initiative, or of an epic outside one: its stages with
+   * what is in each and how far along each is, the stage under way, the open
+   * work in no stage, and the dependencies its order puts the wrong way round.
+   *
+   * @param {Ref} ref
+   * @returns {Plan}
+   */
+  planOf(ref) {
+    const owner = this.planOwnerRow(ref)
+    const initiative = owner.kind === 'initiative'
+    const epics = initiative ? this.summaries(`WHERE i.initiative_id = ? ${NEXT_UP_ORDER}`, [owner.id]) : []
+    const tasks = this.summaries(
+      initiative ? `WHERE i.epic_id IN (SELECT id FROM items WHERE initiative_id = ?) ${NEXT_UP_ORDER}` : `WHERE i.epic_id = ? ${NEXT_UP_ORDER}`,
+      [owner.id]
+    )
+    const placements = this.rows(
+      `SELECT si.item_id AS item, si.stage_id AS stage FROM stage_items si JOIN stages st ON st.id = si.stage_id
+        WHERE st.owner_id = ? ORDER BY st.position, si.position`,
+      owner.id
+    ).map((row) => ({ item: Number(row.item), stage: Number(row.stage) }))
+    const scope = initiative
+      ? 'SELECT id FROM items WHERE initiative_id = ?1 UNION SELECT id FROM items WHERE epic_id IN (SELECT id FROM items WHERE initiative_id = ?1)'
+      : 'SELECT id FROM items WHERE epic_id = ?1'
+    const edges = this.rows(
+      `SELECT item_id AS item, waits_on_id AS waitsOn FROM dependencies WHERE item_id IN (${scope}) AND waits_on_id IN (${scope})`,
+      owner.id
+    ).map((row) => ({ item: Number(row.item), waitsOn: Number(row.waitsOn) }))
+    return buildPlan(this.planOwnerSummary(owner.id), this.stageRows(owner.id), placements, epics, tasks, edges)
+  }
+
+  /**
+   * Replaces a sequence: its stages, in order, each with its items in order.
+   * Every item named must be in the work it plans, and in one stage. Logging
+   * it is the caller's: a session's update logs it with the rest of the
+   * change.
+   *
+   * @param {Ref} ref an initiative, or an epic outside one
+   * @param {{ title: string, goal?: string, items?: Ref[] }[]} stages
+   * @returns {Plan}
+   */
+  setPlan(ref, stages) {
+    return this.transaction(() => {
+      const owner = this.planOwnerRow(ref)
+      const ownerId = formatId(owner.p_key, owner.number)
+      if (!Array.isArray(stages)) throw invalid('A sequence is a list of stages, each {title, goal, items}.')
+      if (stages.length > LIMITS.stages) throw invalid(`A sequence has ${LIMITS.stages} stages at most.`)
+      /** @type {Map<number, number>} the stage each item is put in */
+      const seen = new Map()
+      const resolved = stages.map((stage, index) => {
+        const where = `Stage ${index + 1}`
+        if (typeof stage !== 'object' || stage === null || Array.isArray(stage)) throw invalid(`${where} must be {title, goal, items}.`)
+        const fields = stageFields(stage, where)
+        if (stage.items !== undefined && !Array.isArray(stage.items)) throw invalid(`${where}'s items must be a list of IDs.`)
+        const items = (stage.items ?? []).map((itemRef) => {
+          const item = this.itemRow(itemRef)
+          const id = formatId(item.p_key, item.number)
+          if (this.planOwnerOf(item.id) !== owner.id) throw invalid(notInPlan(id, ownerId, owner.kind))
+          const already = seen.get(item.id)
+          if (already !== undefined) throw invalid(`${id} is named in stage ${already} and stage ${index + 1}. An item is in one stage.`)
+          seen.set(item.id, index + 1)
+          return /** @type {number} */ (item.id)
+        })
+        return { ...fields, items }
+      })
+      this.run('DELETE FROM stages WHERE owner_id = ?', owner.id)
+      const at = this.stamp()
+      resolved.forEach((stage, index) => {
+        const uid = Number(
+          this.run('INSERT INTO stages (owner_id, position, title, goal, created_at) VALUES (?, ?, ?, ?, ?)', owner.id, index + 1, stage.title, stage.goal, at)
+            .lastInsertRowid
+        )
+        stage.items.forEach((itemId, k) => this.run('INSERT INTO stage_items (item_id, stage_id, position) VALUES (?, ?, ?)', itemId, uid, k + 1))
+      })
+      this.touch(owner.id)
+      return this.planOf(owner.id)
+    })
+  }
+
+  /**
+   * Adds a stage, at the end or at number `at`, and logs it on the owner.
+   *
+   * @param {Ref} ref an initiative, or an epic outside one
+   * @param {{ title: string, goal?: string, at?: number }} input
+   * @param {string} by
+   * @returns {StageChoice & { goal: string }}
+   */
+  addStage(ref, input, by) {
+    return this.transaction(() => {
+      const author = requiredText(by, 'by', LIMITS.sessionName)
+      const owner = this.planOwnerRow(ref)
+      const fields = stageFields(input, 'The stage')
+      const count = this.stageRows(owner.id).length
+      if (count >= LIMITS.stages) throw invalid(`A sequence has ${LIMITS.stages} stages at most.`)
+      const at = input.at === undefined ? count + 1 : stageNumber(input.at, count + 1)
+      this.run('UPDATE stages SET position = position + 1 WHERE owner_id = ? AND position >= ?', owner.id, at)
+      const uid = Number(
+        this.run('INSERT INTO stages (owner_id, position, title, goal, created_at) VALUES (?, ?, ?, ?, ?)', owner.id, at, fields.title, fields.goal, this.stamp())
+          .lastInsertRowid
+      )
+      this.appendLog(owner.id, { text: `stage +1${SEP}${at} ${fields.title}`, by: author })
+      return this.stageSummary(uid)
+    })
+  }
+
+  /**
+   * Renames a stage or rewrites its goal, and logs it on the owner.
+   *
+   * @param {number} uid
+   * @param {{ title?: string, goal?: string }} patch
+   * @param {string} by
+   * @returns {StageChoice & { goal: string }}
+   */
+  updateStage(uid, patch, by) {
+    return this.transaction(() => {
+      const author = requiredText(by, 'by', LIMITS.sessionName)
+      const stage = this.stageRow(uid)
+      const title = patch?.title === undefined ? String(stage.title) : requiredText(patch.title, 'stage title', LIMITS.stageTitle)
+      const goal = optionalText(patch?.goal, 'goal', LIMITS.stageGoal) ?? String(stage.goal)
+      /** @type {string[]} */
+      const parts = []
+      if (title !== stage.title) parts.push(`stage ${stage.position} renamed ${stage.title} -> ${title}`)
+      if (goal !== stage.goal) parts.push(`stage ${stage.position} goal`)
+      if (parts.length > 0) {
+        this.run('UPDATE stages SET title = ?, goal = ? WHERE id = ?', title, goal, uid)
+        this.appendLog(Number(stage.owner_id), { text: parts.join(SEP), by: author })
+      }
+      return this.stageSummary(uid)
+    })
+  }
+
+  /**
+   * Moves a stage to number `to`, the others closing up around it, and logs
+   * it on the owner.
+   *
+   * @param {number} uid
+   * @param {number} to
+   * @param {string} by
+   * @returns {StageChoice[]}
+   */
+  moveStage(uid, to, by) {
+    return this.transaction(() => {
+      const author = requiredText(by, 'by', LIMITS.sessionName)
+      const stage = this.stageRow(uid)
+      const ownerId = Number(stage.owner_id)
+      const rows = this.stageRows(ownerId)
+      const target = stageNumber(to, rows.length)
+      const from = Number(stage.position)
+      if (target !== from) {
+        const order = rows.filter((row) => row.id !== uid)
+        order.splice(target - 1, 0, /** @type {any} */ (rows[from - 1]))
+        order.forEach((row, index) => this.run('UPDATE stages SET position = ? WHERE id = ?', index + 1, row.id))
+        this.appendLog(ownerId, { text: `stage ${from} moved to ${target}: ${stage.title}`, by: author })
+      }
+      return stageChoices(this.stageRows(ownerId))
+    })
+  }
+
+  /**
+   * Deletes a stage. What was in it stays, in no stage. Logs it on the owner.
+   *
+   * @param {number} uid
+   * @param {string} by
+   */
+  deleteStage(uid, by) {
+    this.transaction(() => {
+      const author = requiredText(by, 'by', LIMITS.sessionName)
+      const stage = this.stageRow(uid)
+      const ownerId = Number(stage.owner_id)
+      const held = Number(this.row('SELECT count(*) AS n FROM stage_items WHERE stage_id = ?', uid).n)
+      this.run('DELETE FROM stages WHERE id = ?', uid)
+      this.renumberStages(ownerId)
+      const out = held === 0 ? '' : `${SEP}${held} item${held === 1 ? '' : 's'} out of the sequence`
+      this.appendLog(ownerId, { text: `stage -1${SEP}${stage.position} ${stage.title}${out}`, by: author })
+    })
+  }
+
+  /**
+   * Puts an epic or task in a stage of the sequence it is in, or takes it out
+   * with null: the pages' drag and drop. `before` puts it ahead of another
+   * item of that stage, else it goes last; moving inside its own stage is not
+   * logged. A move to another stage is logged on the item, as `editItem` logs
+   * a field.
+   *
+   * @param {Ref} ref
+   * @param {Ref | null} stage a stage uid, a number as a string ("2") or a title
+   * @param {Ref | null} before
+   * @param {string} by
+   * @returns {{ item: ItemSummary, ready: ItemSummary[] }}
+   */
+  placeItem(ref, stage, before, by) {
+    return this.transaction(() => {
+      const row = this.itemRow(ref)
+      if (stage === null) return this.editItem(row.id, { stage: null }, by)
+      const target = this.stageFor(row.id, stage)
+      const result = this.editItem(row.id, { stage: Number(target.id) }, by)
+      if (before !== null && before !== undefined) {
+        const anchor = this.itemRow(before)
+        if (anchor.id !== row.id) this.placeIn(row.id, Number(target.id), Number(anchor.id))
+      }
+      return { ...result, item: this.summaries('WHERE i.id = ?', [row.id])[0] }
+    })
+  }
+
+  /**
+   * The sequence an epic or task can be put in a stage of: its owner and
+   * stages, and the stage the item is in, its own or, for a task, its epic's
+   * (`viaEpic`). Null for an initiative, an epic outside one and a task
+   * outside an epic.
+   *
+   * @param {Ref} ref
+   * @returns {{ owner: PlanOwner, stages: StageChoice[], stage: (StageChoice & { viaEpic: boolean }) | null } | null}
+   */
+  placementOf(ref) {
+    const row = this.itemRow(ref)
+    const ownerId = this.planOwnerOf(row.id)
+    if (ownerId === null) return null
+    const stages = stageChoices(this.stageRows(ownerId))
+    const own = this.row('SELECT stage_id FROM stage_items WHERE item_id = ?', row.id)
+    const viaEpic = !own && row.kind === 'task' && row.epic_id !== null ? this.row('SELECT stage_id FROM stage_items WHERE item_id = ?', row.epic_id) : undefined
+    const stageId = own ? Number(own.stage_id) : viaEpic ? Number(viaEpic.stage_id) : null
+    const stage = stages.find((choice) => choice.uid === stageId)
+    return { owner: this.planOwnerSummary(ownerId), stages, stage: stage === undefined ? null : { ...stage, viaEpic: !own } }
+  }
+
+  /**
+   * The initiative or epic whose sequence `ref` is placed in: an epic's
+   * initiative, a task's epic's initiative, else its epic. Null for an
+   * initiative, an epic outside one and a task outside an epic.
+   *
+   * @private
+   * @param {number} itemId
+   * @returns {number | null}
+   */
+  planOwnerOf(itemId) {
+    const row = this.row(
+      `SELECT CASE i.kind WHEN 'epic' THEN i.initiative_id WHEN 'task' THEN coalesce(e.initiative_id, i.epic_id) END AS owner
+         FROM items i LEFT JOIN items e ON e.id = i.epic_id WHERE i.id = ?`,
+      itemId
+    )
+    return row?.owner === null || row?.owner === undefined ? null : Number(row.owner)
+  }
+
+  /**
+   * An item that holds a sequence: an initiative, or an epic outside one.
+   *
+   * @private
+   * @param {Ref} ref
+   */
+  planOwnerRow(ref) {
+    const row = this.itemRow(ref)
+    const id = formatId(row.p_key, row.number)
+    if (row.kind === 'task') throw invalid(`${id} is a task. A sequence belongs to an initiative, or to an epic outside one.`)
+    if (row.kind === 'epic' && row.initiative_id !== null) {
+      throw invalid(`${id} is in initiative ${this.idOf(Number(row.initiative_id))}, whose sequence its work is placed in.`)
+    }
+    return row
+  }
+
+  /**
+   * @private
+   * @param {number} uid
+   * @returns {PlanOwner}
+   */
+  planOwnerSummary(uid) {
+    const row = this.itemRow(uid)
+    return { uid: Number(row.id), id: formatId(row.p_key, row.number), kind: row.kind, title: row.title }
+  }
+
+  /**
+   * An owner's stages, in order.
+   *
+   * @private
+   * @param {number} ownerId
+   * @returns {{ id: number, position: number, title: string, goal: string }[]}
+   */
+  stageRows(ownerId) {
+    return this.rows('SELECT id, position, title, goal FROM stages WHERE owner_id = ? ORDER BY position, id', ownerId).map((row) => ({
+      id: Number(row.id),
+      position: Number(row.position),
+      title: String(row.title),
+      goal: String(row.goal)
+    }))
+  }
+
+  /**
+   * @private
+   * @param {number} uid
+   */
+  stageRow(uid) {
+    const row = typeof uid === 'number' ? this.row('SELECT * FROM stages WHERE id = ?', uid) : undefined
+    if (!row) throw notFound(`Stage ${String(uid)} does not exist.`)
+    return row
+  }
+
+  /**
+   * @private
+   * @param {number} uid
+   * @returns {StageChoice & { goal: string }}
+   */
+  stageSummary(uid) {
+    const row = this.stageRow(uid)
+    return { uid: Number(row.id), n: Number(row.position), title: String(row.title), goal: String(row.goal) }
+  }
+
+  /**
+   * The stage `ref` names in the sequence an item is placed in: a uid, a
+   * number written as a string ("2"), or a title.
+   *
+   * @private
+   * @param {number} itemId
+   * @param {Ref} ref
+   */
+  stageFor(itemId, ref) {
+    const item = this.itemRow(itemId)
+    const id = formatId(item.p_key, item.number)
+    const ownerId = this.planOwnerOf(item.id)
+    if (ownerId === null) {
+      throw invalid(
+        item.kind === 'initiative'
+          ? `${id} is an initiative: it holds a sequence rather than sitting in a stage of one.`
+          : item.kind === 'epic'
+            ? `${id} is in no initiative, so it is in no stage. Its tasks go in the stages of its own sequence.`
+            : `${id} is in no epic, so it is in no sequence.`
+      )
+    }
+    const owner = this.idOf(ownerId)
+    const stages = this.stageRows(ownerId)
+    if (stages.length === 0) throw invalid(`${owner} has no stages yet. Give it a sequence first.`)
+    /** @type {{ id: number, position: number, title: string } | undefined} */
+    let found
+    if (typeof ref === 'number') found = stages.find((stage) => stage.id === ref)
+    else if (typeof ref === 'string') {
+      const text = ref.trim()
+      if (/^\d+$/.test(text)) found = stages[Number(text) - 1]
+      else {
+        const matches = stages.filter((stage) => stage.title.toLowerCase() === text.toLowerCase())
+        if (matches.length > 1) throw invalid(`${owner} has ${matches.length} stages called ${text}. Name it by its number.`)
+        found = matches[0]
+      }
+    }
+    if (found === undefined) {
+      throw invalid(`${String(ref)} is not a stage of ${owner}. Its stages are ${stages.map((stage) => `${stage.position} ${stage.title}`).join(', ')}.`)
+    }
+    return found
+  }
+
+  /**
+   * Puts an item in a stage, last or before another of its items, or takes
+   * it out with null. Already in that stage and no `before`, it stays where
+   * it is.
+   *
+   * @private
+   * @param {number} itemId
+   * @param {number | null} stageId
+   * @param {number | null} before
+   */
+  placeIn(itemId, stageId, before) {
+    if (stageId === null) {
+      this.run('DELETE FROM stage_items WHERE item_id = ?', itemId)
+      return
+    }
+    const current = this.row('SELECT stage_id FROM stage_items WHERE item_id = ?', itemId)
+    if (before === null) {
+      if (current && Number(current.stage_id) === stageId) return
+      const next = Number(this.row('SELECT coalesce(max(position), 0) + 1 AS next FROM stage_items WHERE stage_id = ?', stageId).next)
+      this.run(
+        'INSERT INTO stage_items (item_id, stage_id, position) VALUES (?, ?, ?) ON CONFLICT (item_id) DO UPDATE SET stage_id = excluded.stage_id, position = excluded.position',
+        itemId,
+        stageId,
+        next
+      )
+      return
+    }
+    const order = this.rows('SELECT item_id FROM stage_items WHERE stage_id = ? AND item_id <> ? ORDER BY position', stageId, itemId).map((row) => Number(row.item_id))
+    const index = order.indexOf(before)
+    if (index < 0) throw invalid(`${this.idOf(before)} is not in that stage.`)
+    order.splice(index, 0, itemId)
+    this.run('DELETE FROM stage_items WHERE item_id = ?', itemId)
+    order.forEach((uid, position) => {
+      if (uid === itemId) this.run('INSERT INTO stage_items (item_id, stage_id, position) VALUES (?, ?, ?)', uid, stageId, position + 1)
+      else this.run('UPDATE stage_items SET position = ? WHERE item_id = ?', position + 1, uid)
+    })
+  }
+
+  /**
+   * Takes out of their stage the items no longer in the work that stage's
+   * sequence plans: after a task changes epic, an epic changes initiative, or
+   * an epic is deleted.
+   *
+   * @private
+   * @returns {number[]} the uids taken out
+   */
+  prunePlacements() {
+    const stale = this.rows(
+      `SELECT si.item_id FROM stage_items si
+         JOIN stages st ON st.id = si.stage_id
+         JOIN items i ON i.id = si.item_id
+         LEFT JOIN items e ON e.id = i.epic_id
+        WHERE st.owner_id IS NOT (CASE i.kind WHEN 'epic' THEN i.initiative_id WHEN 'task' THEN coalesce(e.initiative_id, i.epic_id) END)`
+    ).map((row) => Number(row.item_id))
+    for (const uid of stale) this.run('DELETE FROM stage_items WHERE item_id = ?', uid)
+    return stale
+  }
+
+  /**
+   * An epic joining an initiative brings its own stages, and their items, to
+   * the end of the initiative's sequence.
+   *
+   * @private
+   * @param {number} epicId
+   * @param {number} initiativeId
+   */
+  adoptStages(epicId, initiativeId) {
+    const base = Number(this.row('SELECT coalesce(max(position), 0) AS n FROM stages WHERE owner_id = ?', initiativeId).n)
+    this.run('UPDATE stages SET owner_id = ?, position = position + ? WHERE owner_id = ?', initiativeId, base, epicId)
+  }
+
+  /**
+   * @private
+   * @param {number} ownerId
+   */
+  renumberStages(ownerId) {
+    this.stageRows(ownerId).forEach((row, index) => {
+      if (row.position !== index + 1) this.run('UPDATE stages SET position = ? WHERE id = ?', index + 1, row.id)
+    })
   }
 
   // ---------------------------------------------------------------------------
@@ -1765,32 +2327,41 @@ export class WorkStore {
   }
 
   /**
-   * The key references an item inherits: its epic's, then its project's, then
-   * its portfolio's, each in its owner's order. An epic, and a task outside
-   * one, start at the project. `from` says whose each is; its name is the
-   * epic's ID, the project's name or the portfolio's key.
+   * The key references an item inherits: its epic's, then its initiative's
+   * (a task's is its epic's), then its project's, then its portfolio's, each
+   * in its owner's order. Each level it is not under is skipped. `from` says
+   * whose each is; its name is the epic's or initiative's ID, the project's
+   * name or the portfolio's key.
    *
    * @param {Ref} ref
    * @returns {InheritedReference[]}
    */
   inheritedRefs(ref) {
     const row = this.itemRow(ref)
+    const initiativeId =
+      row.kind === 'epic'
+        ? row.initiative_id
+        : row.kind === 'task' && row.epic_id !== null
+          ? this.row('SELECT initiative_id FROM items WHERE id = ?', row.epic_id).initiative_id
+          : null
     const rows = this.rows(
       `SELECT * FROM (
          SELECT 0 AS level, * FROM (${REF_SELECT} WHERE r.item_id = ?1 AND r.key = 1)
-         UNION ALL SELECT 1, * FROM (${REF_SELECT} WHERE r.project_id = ?2 AND r.key = 1)
-         UNION ALL SELECT 2, * FROM (${REF_SELECT} WHERE r.portfolio_id = ?3 AND r.key = 1))
+         UNION ALL SELECT 1, * FROM (${REF_SELECT} WHERE r.item_id = ?2 AND r.key = 1)
+         UNION ALL SELECT 2, * FROM (${REF_SELECT} WHERE r.project_id = ?3 AND r.key = 1)
+         UNION ALL SELECT 3, * FROM (${REF_SELECT} WHERE r.portfolio_id = ?4 AND r.key = 1))
         ORDER BY level, position`,
       row.epic_id,
+      initiativeId,
       row.project_id,
       row.portfolio_id
     )
     if (rows.length === 0) return []
-    const levels = /** @type {const} */ (['epic', 'project', 'portfolio'])
     const sources = [
-      row.epic_id === null ? null : { level: levels[0], uid: Number(row.epic_id), name: this.idOf(Number(row.epic_id)) },
-      { level: levels[1], uid: Number(row.project_id), name: String(this.projectRow(Number(row.project_id)).name) },
-      { level: levels[2], uid: Number(row.portfolio_id), name: String(row.p_key) }
+      row.epic_id === null ? null : { level: /** @type {const} */ ('epic'), uid: Number(row.epic_id), name: this.idOf(Number(row.epic_id)) },
+      initiativeId === null ? null : { level: /** @type {const} */ ('initiative'), uid: Number(initiativeId), name: this.idOf(Number(initiativeId)) },
+      { level: /** @type {const} */ ('project'), uid: Number(row.project_id), name: String(this.projectRow(Number(row.project_id)).name) },
+      { level: /** @type {const} */ ('portfolio'), uid: Number(row.portfolio_id), name: String(row.p_key) }
     ]
     return this.references(rows).map((reference, index) => ({ ...reference, from: sources[Number(rows[index].level)] ?? unreachable() }))
   }
@@ -2011,12 +2582,31 @@ export class WorkStore {
    * @param {Ref} ref
    */
   epicFor(kind, portfolioId, ref) {
-    if (kind === 'epic') throw invalid('An epic cannot be inside another epic.')
+    if (kind === 'epic') throw invalid('An epic cannot be inside another epic. It can be in an initiative.')
+    if (kind === 'initiative') throw invalid('An initiative is not inside an epic: it holds epics.')
     const epic = this.itemRow(ref)
     const id = formatId(epic.p_key, epic.number)
-    if (epic.kind !== 'epic') throw invalid(`${id} is a task, not an epic.`)
+    if (epic.kind !== 'epic') throw invalid(`${id} is ${article(epic.kind)}, not an epic.`)
     if (epic.portfolio_id !== portfolioId) throw invalid(`${id} is in another portfolio.`)
     return /** @type {number} */ (epic.id)
+  }
+
+  /**
+   * The initiative an epic may be put in.
+   *
+   * @private
+   * @param {string} kind the item's kind
+   * @param {number} portfolioId
+   * @param {Ref} ref
+   */
+  initiativeFor(kind, portfolioId, ref) {
+    if (kind === 'task') throw invalid('A task goes in an epic, and the epic in an initiative.')
+    if (kind === 'initiative') throw invalid('An initiative cannot be inside another initiative.')
+    const initiative = this.itemRow(ref)
+    const id = formatId(initiative.p_key, initiative.number)
+    if (initiative.kind !== 'initiative') throw invalid(`${id} is ${article(initiative.kind)}, not an initiative.`)
+    if (initiative.portfolio_id !== portfolioId) throw invalid(`${id} is in another portfolio.`)
+    return /** @type {number} */ (initiative.id)
   }
 
   /**
@@ -2051,6 +2641,8 @@ export class WorkStore {
       portfolio: { uid: row.p_id, key: row.p_key },
       project: { uid: row.j_id, name: row.j_name, colour: row.j_colour },
       epic: row.e_number === null ? null : { id: formatId(row.p_key, row.e_number), title: row.e_title },
+      initiative: row.n_number === null ? null : { id: formatId(row.p_key, row.n_number), title: row.n_title },
+      stage: row.st_id === null ? null : { uid: Number(row.st_id), n: Number(row.st_n), title: row.st_title },
       status: { uid: row.s_id, name: row.s_name, group: row.s_grp, colour: row.s_colour, icon: row.s_icon },
       priority: { uid: row.r_id, name: row.r_name },
       criteria: { done: Number(row.c_done), total: Number(row.c_total) },
@@ -2213,6 +2805,68 @@ function spansOf(home, tasks) {
 /** @param {any} row */
 function portfolioOf(row) {
   return { uid: row.id, key: row.key, name: row.name, description: row.description, nextNumber: row.next_number }
+}
+
+/**
+ * A stage as a change reads it: "2 Desktop on the host".
+ *
+ * @param {{ n: number, title: string } | null} stage
+ * @returns {string | null}
+ */
+function stageLabel(stage) {
+  return stage === null ? null : `${stage.n} ${stage.title}`
+}
+
+/**
+ * A stage's title and goal, checked.
+ *
+ * @param {any} input
+ * @param {string} where
+ * @returns {{ title: string, goal: string }}
+ */
+function stageFields(input, where) {
+  if (typeof input !== 'object' || input === null || typeof input.title !== 'string' || input.title.trim() === '') {
+    throw invalid(`${where} needs a title.`)
+  }
+  return {
+    title: requiredText(input.title, `${where.toLowerCase()} title`, LIMITS.stageTitle),
+    goal: optionalText(input.goal, `${where.toLowerCase()} goal`, LIMITS.stageGoal) ?? ''
+  }
+}
+
+/**
+ * A stage number from 1 to `max`.
+ *
+ * @param {unknown} value
+ * @param {number} max
+ */
+function stageNumber(value, max) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > max) {
+    throw invalid(max === 1 ? 'The only place for it is stage 1.' : `A stage number is 1 to ${max}.`)
+  }
+  return value
+}
+
+/**
+ * Why an item cannot go in a sequence that does not plan it.
+ *
+ * @param {string} id
+ * @param {string} owner
+ * @param {string} kind the owner's kind
+ */
+function notInPlan(id, owner, kind) {
+  return kind === 'initiative'
+    ? `${id} is not in ${owner}. An initiative's stages hold its epics and their tasks.`
+    : `${id} is not a task of ${owner}. An epic's stages hold its tasks.`
+}
+
+/**
+ * "an initiative", "an epic", "a task".
+ *
+ * @param {string} kind
+ */
+function article(kind) {
+  return kind === 'task' ? 'a task' : `an ${kind}`
 }
 
 /** @param {string} text */

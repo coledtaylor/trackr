@@ -101,7 +101,8 @@
   color: var(--helm-fg);
 }
 
-.it-is-epic .it-crumb-here {
+.it-is-epic .it-crumb-here,
+.it-is-initiative .it-crumb-here {
   color: var(--helm-fg-subtle);
 }
 
@@ -270,7 +271,8 @@ button.it-chip:hover {
   gap: 24px;
 }
 
-.it-is-epic .it-main {
+.it-is-epic .it-main,
+.it-is-initiative .it-main {
   gap: 20px;
 }
 
@@ -285,7 +287,8 @@ button.it-chip:hover {
   border-left: 1px solid var(--helm-border);
 }
 
-.it-is-epic .it-aside {
+.it-is-epic .it-aside,
+.it-is-initiative .it-aside {
   width: 292px;
 }
 
@@ -1474,7 +1477,110 @@ button.it-chip:hover {
   color: var(--helm-fg-muted);
 }
 
+/* Initiative: its epics, and the chips that point at it and at a stage */
+
+.it-chip-dim {
+  color: var(--helm-fg-muted);
+}
+
+.it-chip-stage svg {
+  color: var(--helm-accent);
+}
+
+.in-epic {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 22px 64px minmax(0, 1fr) minmax(64px, 150px) 92px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--helm-border);
+  background: transparent;
+  color: var(--helm-fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.in-epic:hover {
+  background: var(--helm-hover);
+}
+
+.in-epic-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 16px;
+}
+
+.in-epic-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.it .in-count {
+  min-width: 34px;
+  font-size: 11px;
+  color: var(--helm-fg-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.in-stages {
+  font-size: 11.5px;
+  color: var(--helm-fg-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.in-stages.is-none {
+  color: var(--helm-fg-subtle);
+}
+
+.it .in-none {
+  padding: 12px;
+  border-bottom: 1px solid var(--helm-border);
+}
+
+.in-add {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.in-add .it-add-row {
+  margin: 0;
+}
+
+.in-join {
+  width: auto;
+  max-width: 50%;
+  field-sizing: content;
+  margin-left: auto;
+}
+
+.in-add-form .it-add-task-foot {
+  border-top: 1px solid var(--helm-border);
+}
+
 /* Narrow panes */
+
+@container (max-width: 1100px) {
+  .in-epic {
+    grid-template-columns: 22px 64px minmax(0, 1fr) 44px 84px;
+  }
+
+  .in-epic-progress .sq-bar {
+    display: none;
+  }
+}
 
 @container (max-width: 760px) {
   .it-body {

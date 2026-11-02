@@ -160,13 +160,29 @@ export function createEditing(uid, host, redraw) {
       const ran = await confirmDanger({
         title: `Delete ${item.id}`,
         lines: deleteLines(item),
-        confirm: item.kind === 'epic' ? 'Delete epic' : 'Delete task',
+        confirm: `Delete ${item.kind}`,
         run: () => rpc('deleteItem', shown())
       })
       if (!ran) return
       host.deleted?.(item)
       announceChange()
       host.reload()
+    },
+
+    /**
+     * A write the person confirms first in a dialog that says what it does,
+     * like deleting a stage. Resolves true when it ran.
+     *
+     * @param {{ title: string, lines: (Node | string)[], confirm: string }} options
+     * @param {string} method
+     * @param {...unknown} args
+     */
+    async confirmCall(options, method, ...args) {
+      const ran = await confirmDanger({ ...options, run: () => rpc(method, ...args) })
+      if (!ran) return false
+      announceChange()
+      host.reload()
+      return true
     },
 
     /**
@@ -193,11 +209,15 @@ function deleteLines(item) {
   /** @type {(Node | string)[]} */
   const lines = [
     el('p', { class: 'work-dialog-text' }, [el('strong', { text: item.title })]),
-    item.kind === 'epic'
-      ? (item.tasks?.length ?? 0) === 0
-        ? `${item.title} has no tasks.`
-        : `Its ${item.tasks?.length === 1 ? 'task stays' : `${item.tasks?.length} tasks stay`}, without an epic.`
-      : 'Its criteria, links, where it stands and its log go with it.'
+    item.kind === 'initiative'
+      ? (item.epics?.length ?? 0) === 0
+        ? `${item.title} has no epics. Its sequence goes with it.`
+        : `Its ${item.epics?.length === 1 ? 'epic stays' : `${item.epics?.length} epics stay`}, without an initiative. Its sequence goes with it.`
+      : item.kind === 'epic'
+        ? (item.tasks?.length ?? 0) === 0
+          ? `${item.title} has no tasks.`
+          : `Its ${item.tasks?.length === 1 ? 'task stays' : `${item.tasks?.length} tasks stay`}, without an epic.`
+        : 'Its criteria, links, where it stands and its log go with it.'
   ]
   if (item.blocks.length > 0) {
     const ids = item.blocks.map((other) => other.id)
@@ -613,8 +633,9 @@ export function propertySelect(label, options, value, onChange) {
 }
 
 /**
- * The card of fields edited by picking: status, priority, project, and for a
- * task its epic.
+ * The card of fields edited by picking: status, priority, project, for a
+ * task its epic, for an epic its initiative, and for either the stage of
+ * the sequence it is in.
  *
  * @param {Editing} editing
  * @param {ItemOverview} data
@@ -661,6 +682,33 @@ export function propertiesCard(editing, data) {
         [['', 'None'], ...data.epics.map((epic) => /** @type {[string, string]} */ ([epic.id, `${epic.id} ${epic.title}`]))],
         epicId,
         (value) => void editing.edit({ epic: value === '' ? null : value })
+      )
+    ])
+  }
+  if (item.kind === 'epic') {
+    rows.push([
+      'Initiative',
+      propertySelect(
+        'Initiative',
+        [['', 'None'], ...data.initiatives.map((initiative) => /** @type {[string, string]} */ ([initiative.id, `${initiative.id} ${initiative.title}`]))],
+        item.initiative?.id ?? '',
+        (value) => void editing.edit({ initiative: value === '' ? null : value })
+      )
+    ])
+  }
+  const placement = data.placement
+  if (placement !== null && placement.stages.length > 0) {
+    const viaEpic = placement.stage?.viaEpic ? placement.stage : null
+    rows.push([
+      'Stage',
+      propertySelect(
+        'Stage',
+        [
+          ['', viaEpic ? `With its epic: ${viaEpic.n} ${viaEpic.title}` : 'None'],
+          ...placement.stages.map((stage) => /** @type {[string, string]} */ ([String(stage.uid), `${stage.n} ${stage.title}`]))
+        ],
+        item.stage ? String(item.stage.uid) : '',
+        (value) => void editing.edit({ stage: value === '' ? null : Number(value) })
       )
     ])
   }

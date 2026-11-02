@@ -1,10 +1,10 @@
 # Trackr
 
 Work tracking for [Helm](https://github.com/coledtaylor/helm), the desktop
-shell for Claude Code: portfolios, projects, epics and tasks, kept in one
-SQLite file on your computer, with tools that let the Claude Code sessions
-Helm starts read and update the work. It keeps and organises work; it does
-not enforce a workflow.
+shell for Claude Code: portfolios, projects, initiatives, epics and tasks,
+kept in one SQLite file on your computer, with tools that let the Claude
+Code sessions Helm starts read and update the work. It keeps and organises
+work, and the order it will be done in; it does not enforce a workflow.
 
 Sessions get a task's spec, acceptance criteria and where the last session
 stopped from `get`, and leave the next one a handoff with `update`. You see
@@ -45,9 +45,9 @@ for that run. It reaches nothing else.
 3. Allow the tools in `~/.claude/settings.json` (see
    [Tools for sessions](#tools-for-sessions)), so sessions do not ask before
    each call.
-4. Make epics and tasks from the panel's **+**, a portfolio's **New**, or by
-   asking a session to plan the work; the session's `create` puts a whole plan
-   in one call.
+4. Make initiatives, epics and tasks from the panel's **+**, a portfolio's
+   **New**, or by asking a session to plan the work; the session's `create`
+   puts a whole plan in one call, with the sequence it is done in.
 
 A session can do steps 1 and 2 as well: `create` makes a portfolio (key, name,
 description) and its projects (portfolio, name, colour, folders) in the same
@@ -69,6 +69,7 @@ service/folders.mjs  how a working directory picks its project
 service/rpc.mjs      the store methods the pages may call, and the tool route
 service/tools.mjs    find, get, create and update: what a session calls
 service/overview.mjs what the portfolio and project pages show: stats, epics per project, an epic's order
+service/plan.mjs     a sequence worked out: its stages, how far along each is, what is in none, what is out of order
 service/changes.mjs  how a change reads in the log, for sessions and the pages alike
 pages/background.js  relays each session tool call to the service; keeps the rail badge
 pages/panel.*        the sidebar panel
@@ -86,21 +87,42 @@ Portfolio  key (TC), name, description, next number,
            statuses   [{name, group: not-started | active | done | closed, colour, icon}],
            priorities [{name}], in rank order
 Project    portfolio, name, colour, folders []
-Item       TC-123, kind epic | task, project, epic (tasks only), title,
-           description, status, priority, position, waitsOn [ids],
-           links [{kind, value, label}], criteria [{text, done}],
-           handoff {done, left, next, by, at}, log [{at, by, text, ref}],
-           session {id, name, activeAt}
+Item       TC-123, kind initiative | epic | task, project, epic (tasks only),
+           initiative (epics only), title, description, status, priority,
+           position, waitsOn [ids], links [{kind, value, label}],
+           criteria [{text, done}], handoff {done, left, next, by, at},
+           log [{at, by, text, ref}], session {id, name, activeAt}
+Stage      owner (an initiative, or an epic in no initiative), number,
+           title, goal, items [ids] in order
 Reference  owner (a portfolio, project or item),
            kind artifact | doc | file | url, target, title, use, key
 ```
 
-- Epics and tasks share one number sequence per portfolio. The ID is the
-  portfolio key plus the number, so it stays the same when a task moves
-  between projects, and renaming the key renames every ID.
+- Initiatives, epics and tasks share one number sequence per portfolio. The
+  ID is the portfolio key plus the number, so it stays the same when a task
+  moves between projects, and renaming the key renames every ID.
 - An epic has a home project; its tasks can be in any project of the
   portfolio. Dependencies work across projects, never across portfolios, and
   cycles are refused.
+- An initiative groups connected epics: the effort they add up to, like a
+  product rebuilt and shipped under a new name. It has a home project, as an
+  epic does, and its epics can be in any project of its portfolio. An epic is
+  in one initiative at most; a task is in its epic's.
+- A sequence is the order work will be done in: stages, first to last, each
+  with a title, a goal (what is true when it is done) and the items done in
+  it. It belongs to the top of the work it plans: an initiative, or an epic
+  in no initiative. An initiative's stages hold its epics and their tasks; an
+  epic's hold its tasks. An item is in one stage at most. An epic in a stage
+  stands for its tasks that are in no stage of their own, so a far-off epic
+  can sit in a late stage whole while one of its tasks is pulled earlier.
+- Dependencies stay what they are. A stage that puts an item before
+  something it waits on, still open, is shown as out of order, never refused.
+  A stage is done when every task it covers is done; the first stage that is
+  not is the one under way.
+- An epic that joins an initiative brings its stages to the end of the
+  initiative's. An item that leaves the work a sequence plans (a task moved
+  to an epic of another initiative, an epic taken out of its initiative)
+  leaves its stage. Deleting an initiative leaves its epics, without one.
 - A status's group is what it means. Helm and agents read the group, so a
   custom status like "Awaiting launch" in the done group counts as done.
 - A project lists its folders. The deepest folder that holds a session's
@@ -112,8 +134,8 @@ Reference  owner (a portfolio, project or item),
   References are what it follows: designs, mockups, specs and docs. A
   reference is where something is and a `use` line saying when to read it;
   Trackr never keeps its content. A key reference shows on everything under
-  its owner: a portfolio's on its projects, epics and tasks, an epic's on its
-  tasks. A file inside one of its project's folders is stored relative to
+  its owner: a portfolio's on its projects, initiatives, epics and tasks, an
+  initiative's on its epics and their tasks, an epic's on its tasks. A file inside one of its project's folders is stored relative to
   that folder, so it still resolves when the folders change or the item moves
   to another project.
 
@@ -134,8 +156,8 @@ project, and a project's settings, open to stay.
 
 - **Doing now** lists those tasks, with the session on each, dimmed once that
   session is no longer running.
-- **Portfolios** lists each portfolio with its projects and their open task
-  counts. The chevron folds a portfolio; the fold is remembered. **+** beside
+- **Portfolios** lists each portfolio with its open initiatives and its
+  projects with their open task counts. The chevron folds a portfolio; the fold is remembered. **+** beside
   the heading makes a new portfolio: a name, a key (suggested from the name)
   and a description. It starts with the default statuses and priorities, and
   its workflow opens so its projects can be added. Hovering a portfolio shows
@@ -145,12 +167,13 @@ project, and a project's settings, open to stay.
   like `TC-12` puts that item first. Enter opens the first result.
 - **+** in the header opens a new task form. The project starts as the one on
   screen; Ctrl Enter creates the task and opens it. A toggle makes it an epic
-  instead, with a home project.
+  instead, with a home project and the initiative it is in, or an initiative.
 
 Rows open a page:
 
 - **A portfolio** shows a card per project, four stat cards (open tasks over 14
-  days, in progress, waiting on another task, done this week), every epic with
+  days, in progress, waiting on another task, done this week), a card per
+  initiative with a strip of its stages and the one under way, every epic with
   its tasks counted in each project, and the tasks in progress and waiting.
   **Workflow** opens its settings; **New** opens the new task form in a dialog;
   the **Add a project** card after the projects opens the workflow with a new
@@ -167,11 +190,31 @@ Rows open a page:
   task. Each not-started group, and each board column, has a quick add: type a
   title, Enter saves. The sliders button opens the project's editor on the
   workflow page.
+- **An initiative** shows its sequence the width of the page: stages across,
+  each with its goal and how far along it is, the one under way marked
+  **Now** and tinted down its column, and its epics down, each a lane with its
+  work in the stages it is done in. An epic in a stage is one block for the
+  rest of it. Under the grid, **Not in a stage** holds the open work no stage
+  has yet, and **Out of order** lists each wait the order puts the wrong way
+  round, also marked on its chip. Chips are dragged between stages, to a place
+  in a stage, and out to **Not in a stage**. Pressing a stage's title edits its
+  title and goal, moves it earlier or later, or deletes it (its items stay, in
+  no stage); **+** at the end adds stages, one after another. Under the
+  sequence are its description, its epics with their progress and the stages
+  that hold their work (a new one, or one in no initiative, is added there),
+  its acceptance criteria and where it stands, with its fields, references and
+  links beside them.
 - **An epic** shows its progress in each project, its tasks in a box per
   project, the order they can be done in (each task hangs from the task it
   waits on), and its references and links. "Add a task" puts one in any project.
+  In an initiative, it shows its own lane of the initiative's sequence, where
+  its work is dragged between stages, and its initiative and stage beside its
+  title. Outside one, **Sequence** beside it starts a sequence of its own,
+  drawn as the initiative's is, a lane per project.
 - **A task** shows its description, acceptance criteria, where it stands and
   the log, with its fields, dependencies, references and links beside them.
+  The stage it is done in shows beside its title and is picked with its other
+  fields; a task in no stage of its own goes with its epic's.
   **Start a session** asks Helm to open Claude Code in the project's first
   folder with `work on TC-123`; Helm shows what it will run and you start it
   or not. A project with no folder has nowhere to start one. The session chip says what
@@ -179,8 +222,8 @@ Rows open a page:
   running. An `https` link opens in Helm's Browser tab when pressed, with a
   button to copy it; a branch, commit or file is copied.
 - **References** have their own card, with an icon for each kind. A task
-  also shows the key references of its epic, project and portfolio, marked
-  with where they come from. A file that is no longer there is marked missing.
+  also shows the key references of its epic, initiative, project and
+  portfolio, marked with where they come from. A file that is no longer there is marked missing.
   Pressing one opens an `https` address in the Browser tab and a file in the
   program the computer opens it with (Explorer, `open` or `xdg-open`, the
   plugin's only programs). A program or script is shown in its folder instead,
@@ -238,9 +281,12 @@ Sessions Helm starts get four tools, as `mcp__helm-plugin-trackr__<name>`:
 
 ```
 find    one line per item, next up first; no arguments = open items in this folder's project
-get     everything about one or more IDs, portfolio keys or project names; an epic lists its tasks by project
-create  portfolios, projects, epics and tasks in one call; epics and tasks name each other by temporary refs
-update  several items in one call; says what became ready
+get     everything about one or more IDs, portfolio keys or project names; an epic lists its tasks by project,
+        an initiative its epics and its sequence
+create  portfolios, projects, initiatives, epics and tasks, and sequences, in one call; items name each
+        other by temporary refs
+update  several items in one call: fields, a stage, a whole sequence; says what became ready and what is
+        out of order
 ```
 
 `find` and `get` only read. Replies are plain text, written to be cheap for an
@@ -249,6 +295,19 @@ to the service (`POST /tool`), where `service/tools.mjs` does the work next to
 the database. Every agent write is logged with the session's name; setting an
 item to an active status records the session on it, and a second session is
 told who had it. There is no delete tool: agents set an item to Cancelled.
+
+Sequences are written by agents as much as by people. `create` makes an
+initiative (kind `initiative`), puts an epic in one with `initiative`, and
+gives an initiative, or an epic in no initiative, its sequence with `stages`:
+a list of `{title, goal, items}`, first to last, items named by ID or by a ref
+of the same call. `stage` puts one epic or task in a stage, by number or
+title. `update` takes the same `stage` (null takes it out of its stage),
+`stages` to rewrite a whole sequence, and `initiative` to move an epic.
+Replies say what a sequence leaves out and which waits it puts out of order.
+`get` on an initiative lists its epics and its sequence stage by stage, a
+finished stage as one line; on an epic or task it says which stage of which
+sequence it is in. `find` takes `initiative`, and its next up first is work
+under way, then the more urgent, then the earlier stage.
 
 `create` and `update` take references on all four levels, each a `target`, a
 `use` line and a `title`. The kind comes from the target: a claude.ai artifact

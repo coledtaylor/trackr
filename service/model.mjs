@@ -132,7 +132,12 @@ export function inferRefKind(target) {
   return 'url'
 }
 
-export const ITEM_KINDS = /** @type {const} */ (['epic', 'task'])
+/**
+ * What an item is. An initiative groups connected epics across a portfolio's
+ * projects; an epic groups the tasks that ship together; a task is one piece
+ * of work.
+ */
+export const ITEM_KINDS = /** @type {const} */ (['initiative', 'epic', 'task'])
 
 /**
  * A new portfolio's statuses, in board order. `isDefault` is what a new item
@@ -174,5 +179,8 @@ export const LIMITS = {
   refTitle: 300,
   refUse: 500,
   sessionName: 200,
-  folders: 50
+  folders: 50,
+  stageTitle: 200,
+  stageGoal: 2_000,
+  stages: 50
 }

@@ -28,7 +28,7 @@ import { button, editorActions, iconButton, lineField, openFile, openLink } from
  * @typedef {import('../shared/types.js').InheritedReference} InheritedReference
  * @typedef {import('../shared/types.js').RefKind} RefKind
  * @typedef {import('./edit.js').Editing} Editing
- * @typedef {'portfolio' | 'project' | 'epic' | 'task'} Level
+ * @typedef {'portfolio' | 'project' | 'initiative' | 'epic' | 'task'} Level
  * @typedef {{ level: Level, uid: number, refs: Reference[], inherited?: InheritedReference[], missing: number[] }} References
  *   whose they are, its own in order, what it inherits nearest first, and the uids of the files that are gone
  * @typedef {{ kind?: RefKind, target?: string, title?: string, use?: string, key?: boolean }} RefPatch
@@ -47,6 +47,7 @@ const KIND_ICONS = { artifact: ICONS.artifact, doc: ICONS.doc, file: ICONS.file,
 const KEY_MEANS = {
   portfolio: 'every task in the portfolio sees it',
   project: 'every task in the project sees it',
+  initiative: 'its epics and their tasks see it',
   epic: 'its tasks see it',
   task: 'one to read first'
 }
@@ -140,7 +141,7 @@ function formKey(reference) {
  * @returns {Writer}
  */
 function writer(editing, data) {
-  const isItem = data.level === 'epic' || data.level === 'task'
+  const isItem = data.level === 'initiative' || data.level === 'epic' || data.level === 'task'
   const owner = isItem ? { item: data.uid } : data.level === 'project' ? { project: data.uid } : { portfolio: data.uid }
   /** @param {Promise<unknown>} call */
   const landed = async (call) => (await call) !== undefined

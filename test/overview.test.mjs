@@ -203,11 +203,15 @@ describe('status history', () => {
       first.set(13)
       first.store.updateItem(done.id, { status: 'Done' })
       // Back to schema 1, as a database made before the history existed.
+      // Migration 4 rebuilds items from the columns schema 1 has, so the
+      // table can keep its newer shape.
       first.store.db.exec(`
         DROP TRIGGER status_history_insert;
         DROP TRIGGER status_history_update;
         DROP TABLE status_history;
         DROP TABLE refs;
+        DROP TABLE stage_items;
+        DROP TABLE stages;
         PRAGMA user_version = 1;`)
       first.store.close()
 

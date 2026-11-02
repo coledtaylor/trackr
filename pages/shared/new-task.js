@@ -1,9 +1,10 @@
 /// <reference types="@coledtaylor/helm-plugin-sdk/global" />
 /**
  * The new task form: title, project, epic, status, priority and description.
- * A toggle makes it an epic instead, which has a home project and no epic of
- * its own. The panel shows it in place of its list; a tab shows it in a
- * dialog. Either way Ctrl Enter creates it, and it opens in a tab.
+ * A toggle makes it an epic instead, which has a home project and goes in an
+ * initiative rather than an epic, or an initiative, which goes in neither.
+ * The panel shows it in place of its list; a tab shows it in a dialog.
+ * Either way Ctrl Enter creates it, and it opens in a tab.
  */
 
 import { openDialog } from './dialog.js'
@@ -17,13 +18,14 @@ import { announceChange, openItem, rpc } from './work.js'
  * @typedef {import('./types.js').ItemSummary} ItemSummary
  * @typedef {import('./types.js').Item} Item
  * @typedef {import('./types.js').FindResult} FindResult
- * @typedef {{ portfolio: Portfolio, epics: ItemSummary[] }} Choices
+ * @typedef {{ portfolio: Portfolio, epics: ItemSummary[], initiatives: ItemSummary[] }} Choices
+ * @typedef {'task' | 'epic' | 'initiative'} Kind
  * @typedef {{
  *   next: HTMLElement,
  *   body: Node[],
  *   create: HTMLButtonElement,
  *   title: HTMLInputElement,
- *   kind(): 'task' | 'epic',
+ *   kind(): Kind,
  *   submit(): Promise<void>,
  *   destroy(): void
  * }} TaskForm
@@ -42,18 +44,30 @@ export function lastProject() {
 }
 
 /**
- * The status, priority and epic choices of one portfolio.
+ * The status, priority, epic and initiative choices of one portfolio.
  *
  * @param {number} portfolioUid
  * @returns {Promise<Choices>}
  */
 export async function taskChoices(portfolioUid) {
-  const [portfolio, epics] = await Promise.all([
+  const [portfolio, epics, initiatives] = await Promise.all([
     rpc('getPortfolio', portfolioUid),
-    rpc('findItems', { portfolio: portfolioUid, kind: 'epic', open: true, limit: 500 })
+    rpc('findItems', { portfolio: portfolioUid, kind: 'epic', open: true, limit: 500 }),
+    rpc('findItems', { portfolio: portfolioUid, kind: 'initiative', open: true, limit: 500 })
   ])
-  return { portfolio: /** @type {Portfolio} */ (portfolio), epics: /** @type {FindResult} */ (epics).items }
+  return {
+    portfolio: /** @type {Portfolio} */ (portfolio),
+    epics: /** @type {FindResult} */ (epics).items,
+    initiatives: /** @type {FindResult} */ (initiatives).items
+  }
 }
+
+/** What each kind is called, what its title asks for, and what it goes in. */
+const KINDS = /** @type {const} */ ({
+  task: { label: 'Task', placeholder: 'What needs doing', parent: 'Epic', none: 'No epic', project: 'Project' },
+  epic: { label: 'Epic', placeholder: 'What it delivers', parent: 'Initiative', none: 'No initiative', project: 'Home project' },
+  initiative: { label: 'Initiative', placeholder: 'The effort its epics add up to', parent: 'Inside', none: 'Nothing: it holds epics', project: 'Home project' }
+})
 
 /**
  * Builds the form. The host lays out `next` (the ID it will get), `body` and
@@ -61,14 +75,14 @@ export async function taskChoices(portfolioUid) {
  * description; `onKind` lets the host retitle itself for an epic.
  *
  * @param {{ portfolios: PortfolioSummary[], projectUid: number, choices: Choices, hint: string,
- *   onCreated: (item: Item) => void, onKind?: (kind: 'task' | 'epic') => void }} options
+ *   onCreated: (item: Item) => void, onKind?: (kind: Kind) => void }} options
  * @returns {TaskForm}
  */
 export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onKind }) {
   let current = choices
   let alive = true
   let busy = false
-  /** @type {'task' | 'epic'} */
+  /** @type {Kind} */
   let kind = 'task'
 
   const title = /** @type {HTMLInputElement} */ (
@@ -96,7 +110,8 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
     )
   )
   project.value = String(projectUid)
-  const epic = /** @type {HTMLSelectElement} */ (el('select', { class: 'helm-select' }))
+  /** The epic a task goes in, or the initiative an epic goes in. */
+  const parent = /** @type {HTMLSelectElement} */ (el('select', { class: 'helm-select' }))
   const status = /** @type {HTMLSelectElement} */ (el('select', { class: 'helm-select' }))
   const priority = /** @type {HTMLSelectElement} */ (el('select', { class: 'helm-select' }))
   const description = /** @type {HTMLTextAreaElement} */ (
@@ -107,32 +122,44 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
   )
   const next = el('span', { class: 'work-id', title: 'The ID it gets, unless something else is created first' })
   const projectLabel = el('span', { text: 'Project' })
-  const epicField = el('label', { class: 'work-dialog-field' }, [el('span', { text: 'Epic' }), epic])
-  const kinds = /** @type {const} */ ([
-    ['task', 'Task'],
-    ['epic', 'Epic']
-  ]).map(([value, label]) =>
+  const parentLabel = el('span', { text: 'Epic' })
+  const parentField = el('label', { class: 'work-dialog-field' }, [parentLabel, parent])
+  const order = /** @type {const} */ (['task', 'epic', 'initiative'])
+  const kinds = order.map((value) =>
     el('button', {
       class: 'work-kind',
-      text: label,
+      text: KINDS[value].label,
       attrs: { type: 'button', 'aria-pressed': value === kind ? 'true' : 'false' },
       on: { click: () => setKind(value) }
     })
   )
 
-  /** @param {'task' | 'epic'} value */
+  /** @param {Kind} value */
   function setKind(value) {
     if (value === kind) return
     kind = value
-    kinds.forEach((button, index) => button.setAttribute('aria-pressed', String((index === 0 ? 'task' : 'epic') === kind)))
-    const isEpic = kind === 'epic'
-    epic.disabled = isEpic
-    epicField.title = isEpic ? 'Epics do not go in epics.' : ''
-    projectLabel.textContent = isEpic ? 'Home project' : 'Project'
-    title.placeholder = isEpic ? 'What it delivers' : 'What needs doing'
-    create.textContent = isEpic ? 'Create epic' : 'Create task'
+    kinds.forEach((button, index) => button.setAttribute('aria-pressed', String(order[index] === kind)))
+    const words = KINDS[kind]
+    parentLabel.textContent = words.parent
+    parent.disabled = kind === 'initiative'
+    parentField.title = kind === 'initiative' ? 'An initiative is the top: it holds epics.' : ''
+    projectLabel.textContent = words.project
+    title.placeholder = words.placeholder
+    create.textContent = `Create ${kind}`
+    fillParent()
     onKind?.(kind)
     title.focus()
+  }
+
+  /** The parent choices for the kind: open epics for a task, open initiatives for an epic. */
+  function fillParent() {
+    const options = kind === 'task' ? current.epics : kind === 'epic' ? current.initiatives : []
+    fill(parent, [
+      selectFace(),
+      el('option', { text: KINDS[kind].none, attrs: { value: '' } }),
+      ...options.map((option) => el('option', { text: `${option.id} ${option.title}`, attrs: { value: option.uid } }))
+    ])
+    parent.value = ''
   }
   const error = el('p', { class: 'work-dialog-error', attrs: { role: 'alert', hidden: true } })
   const create = /** @type {HTMLButtonElement} */ (
@@ -140,20 +167,16 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
   )
 
   /**
-   * Fills the epic, status and priority choices, keeping a status or priority
-   * of the same name.
+   * Fills the parent, status and priority choices, keeping a status or
+   * priority of the same name.
    *
    * @param {string | null} statusName
    * @param {string | null} priorityName
    */
   function setChoices(statusName, priorityName) {
-    const { portfolio, epics } = current
+    const { portfolio } = current
     next.textContent = `${portfolio.key}-${portfolio.nextNumber}`
-    fill(epic, [
-      selectFace(),
-      el('option', { text: 'No epic', attrs: { value: '' } }),
-      ...epics.map((option) => el('option', { text: `${option.id} ${option.title}`, attrs: { value: option.uid } }))
-    ])
+    fillParent()
     fill(status, [selectFace(), ...portfolio.statuses.map((option) => el('option', { text: option.name, attrs: { value: option.uid } }))])
     fill(priority, [selectFace(), ...portfolio.priorities.map((option) => el('option', { text: option.name, attrs: { value: option.uid } }))])
     status.value = String(carryOption(portfolio.statuses, statusName))
@@ -188,7 +211,7 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
     const text = title.value.trim()
     if (text === '') {
       title.setAttribute('aria-invalid', 'true')
-      showError(kind === 'epic' ? 'An epic needs a title.' : 'A task needs a title.')
+      showError(`${kind === 'task' ? 'A task' : `An ${kind}`} needs a title.`)
       title.focus()
       return
     }
@@ -199,7 +222,8 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
         await rpc('createItem', {
           kind,
           project: Number(project.value),
-          epic: kind === 'epic' || epic.value === '' ? null : Number(epic.value),
+          epic: kind === 'task' && parent.value !== '' ? Number(parent.value) : null,
+          initiative: kind === 'epic' && parent.value !== '' ? Number(parent.value) : null,
           title: text,
           description: description.value,
           status: Number(status.value),
@@ -213,7 +237,8 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
         // A preference only.
       }
       onCreated(item)
-      toast(`Created ${item.id} in ${item.project.name}${item.epic ? `, under ${item.epic.id}` : ''}`)
+      const under = item.epic ?? (item.kind === 'epic' ? item.initiative : null)
+      toast(`Created ${item.id} in ${item.project.name}${under ? `, under ${under.id}` : ''}`)
       void openItem(item)
       announceChange()
     } catch (failure) {
@@ -243,7 +268,7 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
       title,
       el('div', { class: 'work-form-grid' }, [
         el('label', { class: 'work-dialog-field' }, [projectLabel, project]),
-        epicField,
+        parentField,
         field('Status', status),
         field('Priority', priority)
       ]),
@@ -296,7 +321,7 @@ export async function openTaskDialog(portfolioUid, projectUid) {
       onCreated: () => dialog?.close(),
       onKind: (kind) => {
         const heading = dialog?.node.querySelector('.work-dialog-title')
-        if (heading) heading.textContent = kind === 'epic' ? 'New epic' : 'New task'
+        if (heading) heading.textContent = `New ${kind}`
       }
     })
     const cancel = el('button', { class: 'helm-button', text: 'Cancel', attrs: { type: 'button' } })
