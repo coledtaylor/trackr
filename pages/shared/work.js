@@ -3,9 +3,13 @@
  * The pages' way to the Trackr service and to each other.
  *
  * - `rpc` calls one store method through the service.
- * - The `trackr` BroadcastChannel tells every page of the plugin (panel, tabs,
- *   background) that the data changed, and lets the panel ask which tabs are
- *   on screen.
+ * - The `trackr` BroadcastChannel tells every page of the plugin (panel, tabs)
+ *   and the background module that the data changed, and lets the panel ask
+ *   which tabs are on screen.
+ *
+ * The background module imports this file too, so what it runs as it loads
+ * is only what the host's isolate has: `floti` and BroadcastChannel. Tabs,
+ * the surface and localStorage are used inside the functions pages call.
  * - `open*` open the plugin's view tab for a portfolio, its workflow, a
  *   project or an item. A tab is keyed by uid, so it survives a rename and a
  *   portfolio key change. Opened as a preview, as Helm opens a file on a
@@ -34,7 +38,7 @@ export class ServiceError extends Error {
 export async function rpc(method, ...args) {
   let response
   try {
-    response = await helm.fetch('service:/rpc', {
+    response = await floti.fetch('service:/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ method, args })
@@ -97,10 +101,10 @@ export function announceChange() {
 /**
  * Keeps this page's tab when it was opened as a preview, so the next preview
  * does not replace it. No effect in a tab that stays, or outside a tab (the
- * panel, the background page). Helm before 2.3.2 has no previews, nor `keep`.
+ * panel, the background module).
  */
 export function keepTab() {
-  if (typeof helm.surface.keep === 'function') helm.surface.keep()
+  floti.surface.keep()
 }
 
 /**
@@ -135,7 +139,7 @@ export function opens(open) {
  */
 function openView(params, title, how) {
   keepTab()
-  return helm.tabs.open('view', params, { title, preview: how.preview === true })
+  return floti.tabs.open('view', params, { title, preview: how.preview === true })
 }
 
 /**

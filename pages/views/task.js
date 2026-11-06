@@ -596,7 +596,7 @@ function promptBlock(data) {
  */
 async function startSession(cwd, item) {
   try {
-    await helm.sessions.start({ cwd, prompt: sessionPrompt(item), name: item.id })
+    await floti.sessions.start({ cwd, prompt: sessionPrompt(item), name: item.id })
   } catch (error) {
     const busy = /** @type {{ code?: string }} */ (error).code === 'busy'
     toast(busy ? 'Helm is already asking about a session.' : `Could not start a session: ${error instanceof Error ? error.message : String(error)}`)

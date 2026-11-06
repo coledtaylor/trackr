@@ -57,7 +57,7 @@ export function createPortfolioView(root, uid, host) {
       if (!isCurrent()) return
       overview = next
       host.setPlace({ portfolio: next.portfolio.uid })
-      helm.surface.setTitle(next.portfolio.name)
+      floti.surface.setTitle(next.portfolio.name)
       draw()
     }
   }

@@ -858,7 +858,7 @@ export function createWorkflowView(root, uid, host) {
       if (!isCurrent()) return
       data = next
       host.setPlace({ portfolio: uid })
-      helm.surface.setTitle(`${next.portfolio.name} workflow`)
+      floti.surface.setTitle(`${next.portfolio.name} workflow`)
       const opening = first
       first = false
       if (takeProjectFocus()) return

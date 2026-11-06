@@ -71,7 +71,7 @@ service/tools.mjs    find, get, create and update: what a session calls
 service/overview.mjs what the portfolio and project pages show: stats, epics per project, an epic's order
 service/plan.mjs     a sequence worked out: its stages, how far along each is, what is in none, what is out of order
 service/changes.mjs  how a change reads in the log, for sessions and the pages alike
-pages/background.js  relays each session tool call to the service; keeps the rail badge
+pages/background.js  the background module: relays each session tool call to the service; keeps the rail badge
 pages/panel.*        the sidebar panel
 pages/view.*         the tab: loads the view for a portfolio, its workflow, a project or an item
 pages/views/         one module per view
@@ -262,7 +262,7 @@ added is backfilled from what each item is now.
 
 Tabs tell the panel what they show, so the row for what is on screen is
 marked. Every page reads again when another one changes the data,
-and the background page does that after each `create` or `update` a session
+and the background module does that after each `create` or `update` a session
 makes.
 
 Project colours are names (`blue`, `orange`, `green`, `amber`, `pink`), drawn
@@ -347,6 +347,16 @@ The plugin sits above the projects, so the rule goes in the user settings,
 
 Claude Code loads MCP tools on demand, so a session's first work call is
 preceded by one tool search. A plugin cannot change that.
+
+## Plugin API version 2
+
+Trackr is a version 2 plugin (`apiVersion` 2 in the manifest). Its pages
+reach Helm through `window.floti`, and its background is a module,
+`pages/background.js`, that the host runs in an isolate of its own with `floti`
+and BroadcastChannel and no window. The module imports only Trackr's own
+files, by relative path, and what it and `pages/shared/work.js` run as they
+load uses neither tabs, the surface nor localStorage. The service and the
+database are the same as at version 1.
 
 ## What Helm does not give a plugin yet
 

@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@coledtaylor/helm-plugin-sdk/helm-plugin.schema.json",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "id": "trackr",
   "name": "Trackr",
   "version": "0.2.0",
@@ -45,7 +45,7 @@
     "open": "open",
     "xdg-open": "xdg-open"
   },
-  "background": "pages/background.html",
+  "background": "pages/background.js",
   "agent": {
     "instructions": "Work tracking on this computer: portfolios > projects > initiatives > epics > tasks, with IDs like TC-123. When the user names an ID, call get first: it has the spec, the acceptance criteria and where the last session stopped. Its References are the designs, docs, artifacts and files the work follows, each with a use line: read the ones whose use fits what you are about to do, with the tool for their kind. When work comes from a design or doc, add it to the references of the task, epic, project or portfolio it governs, with a use line, rather than copying it into the description; set key when everything under that should see it. If a change makes a referenced doc wrong, update the doc or say so in the handoff. When you start a task, set it In progress. Before you stop working on it, update it: check the criteria you met, write the handoff (done, left, next) and add a log line. find with no arguments lists open work in this folder's project, next first. Put a whole plan in one create. An initiative groups connected epics across projects and holds their sequence: the stages the work is done in, first to last, each with a goal. When a plan spans epics, make the initiative and its stages in the same create; an epic outside an initiative can hold a sequence of its own tasks. Put new work in its stage, keep the stages true when the plan changes, and pick next work from the earliest stage that is not done. There is no delete: set an item to Cancelled.",
     "tools": {

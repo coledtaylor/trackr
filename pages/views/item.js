@@ -65,7 +65,7 @@ export function createItemView(root, uid, host) {
         el('button', { class: 'helm-button', text: `Open ${item.project.name}`, attrs: { type: 'button' }, on: opens((how) => openProject(item.project, how)) })
       ])
     ])
-    helm.surface.setTitle(`${item.id} deleted`)
+    floti.surface.setTitle(`${item.id} deleted`)
   }
 
   return {
@@ -83,7 +83,7 @@ export function createItemView(root, uid, host) {
       if (!isCurrent()) return
       data = next
       host.setPlace({ portfolio: next.portfolio.uid, project: next.item.project.uid })
-      helm.surface.setTitle(itemTitle(next.item))
+      floti.surface.setTitle(itemTitle(next.item))
       draw()
     }
   }

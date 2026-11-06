@@ -21,12 +21,12 @@ function watch() {
   if (watching) return
   watching = true
   let heard = false
-  helm.on('sessions', (list) => {
+  floti.on('sessions', (list) => {
     heard = true
     sessions = list
     paintAll()
   })
-  helm.sessions.list().then(
+  floti.sessions.list().then(
     (list) => {
       // An event that arrived first carries a newer list.
       if (heard) return

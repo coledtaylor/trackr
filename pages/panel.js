@@ -666,12 +666,12 @@ listen((message) => {
   }
 })
 
-helm.on('action', ({ id }) => {
+floti.on('action', ({ id }) => {
   if (id === 'new') void openTask()
   else if (id === 'refresh') void refresh()
 })
 
-helm.on('visibility', (visible) => {
+floti.on('visibility', (visible) => {
   if (visible) void refresh()
 })
 

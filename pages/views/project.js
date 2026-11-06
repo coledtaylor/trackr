@@ -606,7 +606,7 @@ export function createProjectView(root, uid, host) {
       if (!isCurrent()) return
       state.data = data
       host.setPlace({ portfolio: data.portfolio.uid, project: data.project.uid })
-      helm.surface.setTitle(data.project.name)
+      floti.surface.setTitle(data.project.name)
       draw()
     }
   }

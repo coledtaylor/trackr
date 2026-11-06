@@ -422,7 +422,7 @@ export function sessionPhrase(live, lastActive) {
 }
 
 /**
- * The address `helm.open` takes from a link's value: an `https` address with
+ * The address `floti.open` takes from a link's value: an `https` address with
  * no user name or password, up to 2048 characters. Null for anything else,
  * which the page copies instead.
  *

@@ -1,14 +1,10 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { once } from 'node:events'
-import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
-import { fileURLToPath } from 'node:url'
 import { RPC_METHODS, dispatch } from '../service/rpc.mjs'
 import { MIGRATIONS } from '../service/schema.mjs'
 import { WorkStore } from '../service/store.mjs'
-import { memoryStore, tempDir } from './helpers.mjs'
+import { memoryStore, startService, tempDir } from './helpers.mjs'
 
 describe('rpc', () => {
   test('every listed method exists on the store', () => {
@@ -37,29 +33,17 @@ describe('the service process', () => {
   const token = 'test-token'
   const { dir, remove } = tempDir()
   const file = join(dir, 'data dir', 'work.db')
-  /** @type {import('node:child_process').ChildProcess} */
-  let child
+  /** @type {Awaited<ReturnType<typeof startService>>} */
+  let service
   let port = 0
 
   before(async () => {
-    port = await freePort()
-    child = spawn(process.execPath, [fileURLToPath(new URL('../service/main.mjs', import.meta.url))], {
-      env: { ...process.env, HELM_SERVICE_PORT: String(port), HELM_SERVICE_TOKEN: token, HELM_TRACKR_DB: file },
-      stdio: ['ignore', 'pipe', 'inherit']
-    })
-    const stdout = /** @type {import('node:stream').Readable} */ (child.stdout)
-    let output = ''
-    while (!output.includes('serving')) {
-      const [chunk] = await once(stdout, 'data')
-      output += String(chunk)
-    }
+    service = await startService(file, { token })
+    port = service.port
   })
 
   after(async () => {
-    if (child.exitCode === null) {
-      child.kill()
-      await once(child, 'exit')
-    }
+    await service?.stop()
     remove()
   })
 
@@ -110,14 +94,3 @@ describe('the service process', () => {
     assert.equal((await call('/elsewhere')).status, 404)
   })
 })
-
-/** @returns {Promise<number>} */
-async function freePort() {
-  const server = createServer()
-  server.listen(0, '127.0.0.1')
-  await once(server, 'listening')
-  const address = /** @type {import('node:net').AddressInfo} */ (server.address())
-  server.close()
-  await once(server, 'close')
-  return address.port
-}

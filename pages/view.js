@@ -20,8 +20,8 @@ import { createWorkflowView } from './views/workflow.js'
 
 const root = /** @type {HTMLElement} */ (document.getElementById('view'))
 const tab = crypto.randomUUID()
-const kind = /** @type {Kind} */ (String(helm.context.params.kind))
-const uid = Number(helm.context.params.uid)
+const kind = /** @type {Kind} */ (String(floti.context.params.kind))
+const uid = Number(floti.context.params.uid)
 
 /** Where the shown thing sits, for the panel's default project. */
 let place = { portfolio: /** @type {number | undefined} */ (undefined), project: /** @type {number | undefined} */ (undefined) }
@@ -64,13 +64,13 @@ async function load() {
         gone ? null : el('button', { class: 'helm-button', text: 'Try again', attrs: { type: 'button' }, on: { click: () => void load() } })
       ])
     ])
-    if (gone) helm.surface.setTitle('Gone')
+    if (gone) floti.surface.setTitle('Gone')
   }
   announce()
 }
 
 function announce() {
-  post({ type: 'view', tab, kind, uid, portfolio: place.portfolio, project: place.project, visible: helm.visible, at: Date.now() })
+  post({ type: 'view', tab, kind, uid, portfolio: place.portfolio, project: place.project, visible: floti.visible, at: Date.now() })
 }
 
 listen((message) => {
@@ -79,7 +79,7 @@ listen((message) => {
   else if (message.type === 'focus') view?.focus?.()
 })
 
-helm.on('visibility', (visible) => {
+floti.on('visibility', (visible) => {
   announce()
   if (visible) void load()
 })

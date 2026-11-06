@@ -374,7 +374,7 @@ describe('openableAddress', () => {
     assert.equal(openableAddress(' https://github.com/coledtaylor/trackr/pull/3 '), 'https://github.com/coledtaylor/trackr/pull/3')
   })
 
-  it('refuses what helm.open would', () => {
+  it('refuses what floti.open would', () => {
     assert.equal(openableAddress('http://example.com'), null)
     assert.equal(openableAddress('feat/x'), null)
     assert.equal(openableAddress('https://user:pass@example.com'), null)

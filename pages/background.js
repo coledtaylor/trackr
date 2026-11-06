@@ -1,24 +1,35 @@
 /// <reference types="@coledtaylor/helm-plugin-sdk/global" />
 /**
- * The background page: answers the tools the manifest offers Claude Code
+ * The background module: answers the tools the manifest offers Claude Code
  * sessions, and keeps the rail badge at the number of tasks in progress.
  *
- * The tools themselves run in the service, next to the database; this page
+ * The host runs it in an isolate of its own, with `floti` and
+ * BroadcastChannel and no window: no DOM, no localStorage and no tabs. It
+ * imports only Trackr's own files, by relative path.
+ *
+ * The tools themselves run in the service, next to the database; this module
  * hands each call over with the session that made it and returns the
- * service's text as the reply. After a call that writes, it tells the other
- * pages the data changed and recounts the badge.
+ * service's text as the reply. After a call that writes, it tells the pages
+ * the data changed and recounts the badge.
  */
 
 import { announceChange, listen, rpc } from './shared/work.js'
 
+/**
+ * The pages and this module are checked as one program, where the global
+ * `floti` is a page's bridge. Here it is the background's, which has no
+ * window to open anything in.
+ */
+const host = /** @type {import('@coledtaylor/helm-plugin-sdk').FlotiBackground} */ (/** @type {unknown} */ (floti))
+
 const TOOLS = ['find', 'get', 'create', 'update']
 const WRITES = new Set(['create', 'update'])
 
-// Registered as the page starts, before anything it awaits: a session can
-// call as soon as the page is up.
+// Registered as the module starts, before anything it awaits: a session can
+// call as soon as the plugin is up.
 for (const name of TOOLS) {
-  helm.tools.handle(name, async (args, { session, signal }) => {
-    const response = await helm.fetch('service:/tool', {
+  host.tools.handle(name, async (args, { session, signal }) => {
+    const response = await host.fetch('service:/tool', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name, args, session: { id: session.id, name: session.name, cwd: session.cwd } }),
@@ -48,7 +59,7 @@ async function updateBadge() {
   const seq = ++badgeSeq
   try {
     const { total } = /** @type {{ total: number }} */ (await rpc('findItems', { groups: ['active'], kind: 'task', limit: 1 }))
-    if (seq === badgeSeq) await helm.badge.set(total)
+    if (seq === badgeSeq) await host.badge.set(total)
   } catch (error) {
     console.error('trackr: could not count the tasks in progress', error)
   }

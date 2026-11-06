@@ -780,7 +780,7 @@ function linkRow(editing, link, text) {
  */
 export async function openLink(address) {
   try {
-    await helm.open(address)
+    await floti.open(address)
   } catch (error) {
     if (/** @type {{ code?: string }} */ (error).code === 'busy') return
     toast(`Could not open ${address}: ${error instanceof Error ? error.message : String(error)}`)
@@ -797,7 +797,7 @@ export async function openLink(address) {
 export async function openFile(path) {
   const { program, args } = fileOpener(path, platformOf(navigator.userAgent))
   try {
-    const result = await helm.exec(program, args, { timeoutMs: 15_000 })
+    const result = await floti.exec(program, args, { timeoutMs: 15_000 })
     if (program !== 'explorer' && result.exitCode !== 0) toast(`Could not open ${path}: ${result.stderr.trim() || `${program} answered ${result.exitCode}`}`)
   } catch (error) {
     toast(`Could not open ${path}: ${error instanceof Error ? error.message : String(error)}`)
