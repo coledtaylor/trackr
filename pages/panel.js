@@ -497,7 +497,7 @@ function openNewPortfolio() {
       return
     }
     if (!PORTFOLIO_KEY.test(keyText)) {
-      showError('A key is a letter, then up to nine letters or digits, like TC or HELM.')
+      showError('A key is a letter, then up to nine letters or digits, like TC or FLOTI.')
       key.focus()
       return
     }

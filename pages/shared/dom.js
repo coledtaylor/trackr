@@ -360,7 +360,7 @@ export function toast(text) {
 
 /**
  * What a select shows when closed: the chosen option, cut to one line.
- * Helm draws every select as `base-select`, which ignores `overflow` on the
+ * Floti draws every select as `base-select`, which ignores `overflow` on the
  * select itself, so a long option (an epic's title) would run out of the box;
  * a face of its own can be cut. It goes first in the select.
  */

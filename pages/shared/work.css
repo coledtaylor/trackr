@@ -1,6 +1,6 @@
 /*
- * What the plugin's pages share, on top of Helm's primitives. Colours are
- * Helm's theme tokens, except the categorical project colours, which Helm does
+ * What the plugin's pages share, on top of Floti's primitives. Colours are
+ * Floti's theme tokens, except the categorical project colours, which Floti does
  * not have yet: the v2 board's five, a shade per theme kind.
  */
 

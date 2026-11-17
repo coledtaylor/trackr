@@ -11,12 +11,12 @@ function tidecast() {
 describe('IDs', () => {
   test('epics and tasks share one counter per portfolio', () => {
     const store = tidecast()
-    store.createPortfolio({ key: 'HELM', name: 'Helm' })
-    store.createProject({ portfolio: 'HELM', name: 'App' })
+    store.createPortfolio({ key: 'FLOTI', name: 'Floti' })
+    store.createProject({ portfolio: 'FLOTI', name: 'App' })
     const epic = store.createItem({ kind: 'epic', project: 'Desktop', title: 'Saved views' })
     const task = store.createItem({ project: 'Reporting API', epic: epic.id, title: 'Ingest keeps view_type' })
-    const helm = store.createItem({ project: 'App', title: 'Elsewhere' })
-    assert.deepEqual([epic.id, task.id, helm.id], ['TC-1', 'TC-2', 'HELM-1'])
+    const floti = store.createItem({ project: 'App', title: 'Elsewhere' })
+    assert.deepEqual([epic.id, task.id, floti.id], ['TC-1', 'TC-2', 'FLOTI-1'])
     assert.equal(store.getPortfolio('TC').nextNumber, 3)
   })
 
@@ -94,8 +94,8 @@ describe('items', () => {
 
   test('an item cannot move to another portfolio', () => {
     const store = tidecast()
-    store.createPortfolio({ key: 'HELM', name: 'Helm' })
-    const app = store.createProject({ portfolio: 'HELM', name: 'App' })
+    store.createPortfolio({ key: 'FLOTI', name: 'Floti' })
+    const app = store.createProject({ portfolio: 'FLOTI', name: 'App' })
     const task = store.createItem({ project: 'Desktop', title: 'Task' })
     assert.throws(() => store.updateItem(task.id, { project: app.uid }), /an item stays in its portfolio/)
   })
@@ -158,15 +158,15 @@ describe('dependencies', () => {
 
   test('refuse a cycle, a self-dependency and another portfolio', () => {
     const store = tidecast()
-    store.createPortfolio({ key: 'HELM', name: 'Helm' })
-    store.createProject({ portfolio: 'HELM', name: 'App' })
+    store.createPortfolio({ key: 'FLOTI', name: 'Floti' })
+    store.createProject({ portfolio: 'FLOTI', name: 'App' })
     const a = store.createItem({ project: 'Desktop', title: 'a' })
     const b = store.createItem({ project: 'Reporting API', title: 'b', waitsOn: [a.id] })
     const c = store.createItem({ project: 'Desktop', title: 'c', waitsOn: [b.id] })
-    const helm = store.createItem({ project: 'App', title: 'h' })
+    const floti = store.createItem({ project: 'App', title: 'h' })
     assert.throws(() => store.addDependency(a.id, c.id), { code: 'conflict', message: 'TC-3 already waits on TC-1, so TC-1 cannot wait on it.' })
     assert.throws(() => store.addDependency(a.id, a.id), /cannot wait on itself/)
-    assert.throws(() => store.addDependency(a.id, helm.id), /different portfolios/)
+    assert.throws(() => store.addDependency(a.id, floti.id), /different portfolios/)
   })
 
   test('adding one twice is one, and removing it frees the item', () => {

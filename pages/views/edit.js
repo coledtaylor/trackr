@@ -375,7 +375,7 @@ function inlineNode(node, links) {
 }
 
 /**
- * A link that opens in Helm's Browser tab. An address Helm cannot open (not
+ * A link that opens in Floti's Browser tab. An address Floti cannot open (not
  * `https`, a path, a branch) is drawn as its text, with the address in the
  * tooltip.
  *
@@ -724,7 +724,7 @@ const LINK_ICONS = { branch: ICONS.branch, pr: ICONS.pr, commit: ICONS.commit, f
 
 /**
  * The links, and a form to add one: what the work produced. An `https`
- * address opens in Helm's Browser tab when pressed and has a button to copy
+ * address opens in Floti's Browser tab when pressed and has a button to copy
  * it; anything else (a branch, a commit, a file) is copied when pressed. What
  * the work follows is in the References card.
  *
@@ -773,8 +773,8 @@ function linkRow(editing, link, text) {
 }
 
 /**
- * Opens an address in Helm's Browser tab. Called from the click: Helm takes
- * it only from one. A second press within the second Helm allows is dropped.
+ * Opens an address in Floti's Browser tab. Called from the click: Floti takes
+ * it only from one. A second press within the second Floti allows is dropped.
  *
  * @param {string} address
  */

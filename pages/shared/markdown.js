@@ -44,7 +44,7 @@
 const MAX_BLOCK_DEPTH = 16
 /** How many `*` and `~~` runs can wait for their closer at once, which bounds how deep emphasis nests. */
 const MAX_OPENERS = 64
-/** The longest link address looked for, the longest Helm opens. */
+/** The longest link address looked for, the longest Floti opens. */
 const MAX_ADDRESS = 2048
 
 const BLANK = /^[ \t]*$/

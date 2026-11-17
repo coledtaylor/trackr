@@ -262,7 +262,7 @@ describe('suggestKey', () => {
   it('takes the capitals of a joined name, the initials of words, or the start of one word', () => {
     assert.equal(suggestKey('TideCast'), 'TC')
     assert.equal(suggestKey('Plugin SDK'), 'PS')
-    assert.equal(suggestKey('Helm'), 'HELM')
+    assert.equal(suggestKey('Floti'), 'FLOT')
     assert.equal(suggestKey('warband'), 'WARB')
     assert.equal(suggestKey('Ma'), 'MA')
   })
@@ -326,7 +326,7 @@ describe('liveState', () => {
   /** @param {string} id @param {'running' | 'ended'} state @param {any} [activity] */
   const listed = (id, state, activity = null) => ({ id, state, activity })
 
-  it('is null when Helm could not list its sessions', () => {
+  it('is null when Floti could not list its sessions', () => {
     assert.equal(liveState('a', null), null)
   })
 
@@ -334,7 +334,7 @@ describe('liveState', () => {
     assert.deepEqual(liveState('a', [listed('a', 'running', 'busy')]), { running: true, activity: 'busy' })
   })
 
-  it('is not running once it ended, or when Helm does not list it', () => {
+  it('is not running once it ended, or when Floti does not list it', () => {
     assert.deepEqual(liveState('a', [listed('a', 'ended')]), { running: false })
     assert.deepEqual(liveState('a', [listed('b', 'running', 'idle')]), { running: false })
     assert.deepEqual(liveState('a', []), { running: false })
@@ -356,7 +356,7 @@ describe('sessionPhrase', () => {
     assert.equal(sessionPhrase({ running: false }, '14:12'), 'not running')
   })
 
-  it('falls back to when it last wrote when Helm could not say', () => {
+  it('falls back to when it last wrote when Floti could not say', () => {
     assert.equal(sessionPhrase(null, '14:12'), 'last active 14:12')
     assert.equal(sessionPhrase(null, ''), '')
   })

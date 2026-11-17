@@ -157,7 +157,7 @@ export function createWorkflowView(root, uid, host) {
       el('h2', { class: 'it-h2', text: 'Statuses' }),
       el('p', {
         class: 'wf-note',
-        text: `Every epic and task in ${settings.portfolio.name} uses these. The group is what a status means to Helm and to agents, whatever it is called.`
+        text: `Every epic and task in ${settings.portfolio.name} uses these. The group is what a status means to Floti and to agents, whatever it is called.`
       }),
       ...statusesByGroup(settings.portfolio.statuses).map((group) => {
         const addKey = `status.new.${group.group}`
@@ -687,7 +687,7 @@ export function createWorkflowView(root, uid, host) {
       return
     }
     if (patch.key !== undefined && !PORTFOLIO_KEY.test(String(patch.key))) {
-      toast('A key is a letter, then up to nine letters or digits, like TC or HELM.')
+      toast('A key is a letter, then up to nine letters or digits, like TC or FLOTI.')
       return
     }
     const forget = () => {

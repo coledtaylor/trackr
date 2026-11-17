@@ -37,7 +37,7 @@ export function tempDir() {
 }
 
 /**
- * The real service process on a database file, as Helm starts it: a loopback
+ * The real service process on a database file, as Floti starts it: a loopback
  * port and a token in its environment. Resolves once it says it is serving,
  * with the line it said it on.
  *

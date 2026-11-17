@@ -1,6 +1,6 @@
 /**
  * A dialog inside the page, over whatever the page shows: the confirmation a
- * delete asks for, and the new task form in a tab. Helm has no dialog for
+ * delete asks for, and the new task form in a tab. Floti has no dialog for
  * plugins, so this is the page's own: a modal `<dialog>`, which takes the
  * focus, keeps it inside, and closes on Escape.
  */

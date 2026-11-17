@@ -148,7 +148,7 @@ Open the sequence`,
 }
 
 /**
- * The session on the task, what it is doing now by Helm's session list, and
+ * The session on the task, what it is doing now by Floti's session list, and
  * a way to let it go.
  *
  * @param {Item} item
@@ -558,7 +558,7 @@ async function search(data, editing, state, redraw) {
 
 /**
  * Starts a session on the task in its project's first folder, with the
- * prompt that has it read the task first. Helm shows what it will run and the
+ * prompt that has it read the task first. Floti shows what it will run and the
  * user starts it or not. A project with no folder has nowhere to start one.
  *
  * @param {ItemOverview} data
@@ -583,13 +583,13 @@ function promptBlock(data) {
       { class: 'it-hint it-prompt-hint' },
       folder === null
         ? [`${item.project.name} has no folder to start a session in. Add one on the portfolio's workflow page.`]
-        : ['Opens Claude Code in ', el('span', { class: 'it-mono', text: project?.place ?? folder }), ' with ', el('span', { class: 'it-mono it-nowrap', text: prompt }), '. Helm asks first.']
+        : ['Opens Claude Code in ', el('span', { class: 'it-mono', text: project?.place ?? folder }), ' with ', el('span', { class: 'it-mono it-nowrap', text: prompt }), '. Floti asks first.']
     )
   ])
 }
 
 /**
- * Called from the click: Helm takes the request only from one.
+ * Called from the click: Floti takes the request only from one.
  *
  * @param {string} cwd
  * @param {Item} item
@@ -599,7 +599,7 @@ async function startSession(cwd, item) {
     await floti.sessions.start({ cwd, prompt: sessionPrompt(item), name: item.id })
   } catch (error) {
     const busy = /** @type {{ code?: string }} */ (error).code === 'busy'
-    toast(busy ? 'Helm is already asking about a session.' : `Could not start a session: ${error instanceof Error ? error.message : String(error)}`)
+    toast(busy ? 'Floti is already asking about a session.' : `Could not start a session: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

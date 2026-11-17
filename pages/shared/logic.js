@@ -1,5 +1,5 @@
 /**
- * Decisions the pages make that do not touch the DOM or Helm: what to show
+ * Decisions the pages make that do not touch the DOM or Floti: what to show
  * first, what to pick by default, how a time reads. Kept here so node:test can
  * check them without a browser.
  */
@@ -386,11 +386,11 @@ export function sessionFolder(project) {
  */
 
 /**
- * Whether the session holding a claim still runs, from Helm's session list.
- * Trackr's tools are served only to sessions Helm hosts, and Helm lists every
+ * Whether the session holding a claim still runs, from Floti's session list.
+ * Trackr's tools are served only to sessions Floti hosts, and Floti lists every
  * one it started since it opened, so a claim missing from the list is a
- * session that has ended: before Helm last started, or long enough ago to
- * fall off the list. Null when Helm's list could not be read.
+ * session that has ended: before Floti last started, or long enough ago to
+ * fall off the list. Null when Floti's list could not be read.
  *
  * @param {string} id the session id the claim recorded from a tool call
  * @param {ListedSession[] | null} sessions
@@ -409,7 +409,7 @@ const ACTIVITY = { busy: 'working', idle: 'idle', waiting: 'waiting for you', sh
 
 /**
  * How a session's state reads beside its name: "working", "not running".
- * When Helm's list could not be read, when the session last wrote instead.
+ * When Floti's list could not be read, when the session last wrote instead.
  *
  * @param {LiveState | null} live
  * @param {string} lastActive when it last wrote, or ''
@@ -457,7 +457,7 @@ export const PORTFOLIO_KEY = /^[A-Z][A-Z0-9]{0,9}$/
 /**
  * A key for a new portfolio's name, before one is typed: the capitals of
  * "TideCast" (TC), the first letters of "Plugin SDK" (PS), or the first four
- * letters of a single word (HELM). Empty when the name has no letters.
+ * letters of a single word (FLOT for Floti). Empty when the name has no letters.
  *
  * @param {string} name
  */
@@ -580,7 +580,7 @@ export function sequenceLanes(plan, focus = null) {
  * earlier one.
  *
  * @param {{ item: string, stage: number, waitsOn: string, waitsOnStage: number }[]} conflicts
- * @returns {Map<string, string[]>} lines like "Waits on HELM-95, in stage 4"
+ * @returns {Map<string, string[]>} lines like "Waits on FLOTI-95, in stage 4"
  */
 export function conflictNotes(conflicts) {
   /** @type {Map<string, string[]>} */

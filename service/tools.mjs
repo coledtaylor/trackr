@@ -9,7 +9,7 @@ import { unshadowed } from './overview.mjs'
 /**
  * The four tools Claude Code sessions call: find, get, create and update.
  *
- * Each takes the session's arguments (untrusted: Helm does not check them
+ * Each takes the session's arguments (untrusted: Floti does not check them
  * against the schema) and the calling session, and answers with plain text
  * written to be cheap to read: one line per item, IDs first. A WorkError
  * thrown here becomes a failed call whose message the session reads.
@@ -452,8 +452,8 @@ function detail(context, item) {
 
 /**
  * Where an epic or task sits in the sequence it is in:
- * stage: 2 of 5, Desktop on the host, in the sequence of HELM-123
- * stage: none of the 5 in the sequence of HELM-123; update stage puts it in one
+ * stage: 2 of 5, Desktop on the host, in the sequence of FLOTI-123
+ * stage: none of the 5 in the sequence of FLOTI-123; update stage puts it in one
  *
  * @param {Item} item
  * @param {NonNullable<ReturnType<WorkStore['placementOf']>>} placement
@@ -1710,7 +1710,7 @@ function sameTarget(reference, target) {
 }
 
 // -----------------------------------------------------------------------------
-// Argument checks. Helm does not check arguments against the schema, so every
+// Argument checks. Floti does not check arguments against the schema, so every
 // one is checked here, and a mistake says which field.
 
 /**

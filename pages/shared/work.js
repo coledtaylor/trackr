@@ -12,7 +12,7 @@
  * the surface and localStorage are used inside the functions pages call.
  * - `open*` open the plugin's view tab for a portfolio, its workflow, a
  *   project or an item. A tab is keyed by uid, so it survives a rename and a
- *   portfolio key change. Opened as a preview, as Helm opens a file on a
+ *   portfolio key change. Opened as a preview, as Floti opens a file on a
  *   click, the next preview takes its place; `opens` gives a link that
  *   click, and a double click that opens to stay.
  */
@@ -116,7 +116,7 @@ export function keepTab() {
  */
 
 /**
- * The handlers that open a view the way Helm opens a file: a click previews
+ * The handlers that open a view the way Floti opens a file: a click previews
  * it, a double click opens it to stay. An element's `on`.
  *
  * @param {Opener} open

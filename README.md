@@ -1,23 +1,23 @@
 # Trackr
 
-Work tracking for [Helm](https://github.com/coledtaylor/helm), the desktop
+Work tracking for [Floti](https://github.com/floti-dev/floti), the desktop
 shell for Claude Code: portfolios, projects, initiatives, epics and tasks,
 kept in one SQLite file on your computer, with tools that let the Claude
-Code sessions Helm starts read and update the work. It keeps and organises
+Code sessions Floti starts read and update the work. It keeps and organises
 work, and the order it will be done in; it does not enforce a workflow.
 
 Sessions get a task's spec, acceptance criteria and where the last session
 stopped from `get`, and leave the next one a handoff with `update`. You see
-and edit the same work in Helm's sidebar and tabs.
+and edit the same work in Floti's sidebar and tabs.
 
 ## Requirements
 
-- Helm 2.3.0 or later, the first that starts a session from a task, opens a
-  link, lists its sessions and keeps a plugin's pages in one tab.
-  Helm 2.3.2 or later opens them as previews (below); before it, every page
-  opened stays.
-- Windows is where it is built and tested, as Helm is.
-- Nothing else: the service runs on the Node inside Helm and uses its built-in
+- Floti 3.0 or later. The plugin uses the names Floti gives plugins: the
+  `floti-plugin.json` manifest, the `floti-` primitives and `--floti-` theme
+  variables, and the `FLOTI_SERVICE_PORT` and `FLOTI_SERVICE_TOKEN` its
+  service is started with.
+- Windows is where it is built and tested.
+- Nothing else: the service runs on the Node inside Floti and uses its built-in
   SQLite. There are no runtime dependencies.
 
 ## Install
@@ -26,13 +26,13 @@ and edit the same work in Helm's sidebar and tabs.
 git clone https://github.com/coledtaylor/trackr.git
 ```
 
-Then in Helm open Settings > Plugins, press **Add folder** and pick the
-`trackr` folder. Its icon appears on the rail. To update, `git pull`: Helm
+Then in Floti open Settings > Plugins, press **Add folder** and pick the
+`trackr` folder. Its icon appears on the rail. To update, `git pull`: Floti
 reloads the plugin when its files change.
 
 Settings marks the plugin as one that runs a program. That program is
 `service/main.mjs`: it opens the one database file and answers the plugin's
-own pages on `127.0.0.1`, and only requests carrying the token Helm gives it
+own pages on `127.0.0.1`, and only requests carrying the token Floti gives it
 for that run. It reaches nothing else.
 
 ## Getting started
@@ -60,8 +60,8 @@ or by a session with `create`.
 ## What is here
 
 ```
-helm-plugin.json     the manifest
-service/main.mjs     the service Helm runs: owns the database, answers the pages over loopback
+floti-plugin.json    the manifest
+service/main.mjs     the service Floti runs: owns the database, answers the pages over loopback
 service/store.mjs    the store: every read and write of the model
 service/schema.mjs   the schema, as migrations
 service/model.mjs    status groups, colours, icons, link and reference kinds, defaults
@@ -123,7 +123,7 @@ Reference  owner (a portfolio, project or item),
   initiative's. An item that leaves the work a sequence plans (a task moved
   to an epic of another initiative, an epic taken out of its initiative)
   leaves its stage. Deleting an initiative leaves its epics, without one.
-- A status's group is what it means. Helm and agents read the group, so a
+- A status's group is what it means. Floti and agents read the group, so a
   custom status like "Awaiting launch" in the done group counts as done.
 - A project lists its folders. The deepest folder that holds a session's
   working directory decides the project. A folder belongs to one project.
@@ -139,7 +139,7 @@ Reference  owner (a portfolio, project or item),
   that folder, so it still resolves when the folders change or the item moves
   to another project.
 
-## In Helm
+## In Floti
 
 The rail icon opens the **Trackr** panel. Its badge is the number of tasks in an
 active status, across every portfolio.
@@ -215,11 +215,11 @@ Rows open a page:
   the log, with its fields, dependencies, references and links beside them.
   The stage it is done in shows beside its title and is picked with its other
   fields; a task in no stage of its own goes with its epic's.
-  **Start a session** asks Helm to open Claude Code in the project's first
-  folder with `work on TC-123`; Helm shows what it will run and you start it
+  **Start a session** asks Floti to open Claude Code in the project's first
+  folder with `work on TC-123`; Floti shows what it will run and you start it
   or not. A project with no folder has nowhere to start one. The session chip says what
   the session is doing (working, idle, waiting for you) or that it is not
-  running. An `https` link opens in Helm's Browser tab when pressed, with a
+  running. An `https` link opens in Floti's Browser tab when pressed, with a
   button to copy it; a branch, commit or file is copied.
 - **References** have their own card, with an icon for each kind. A task
   also shows the key references of its epic, initiative, project and
@@ -248,7 +248,7 @@ CommonMark where the two differ:
   `part-*.patch` keeps its star, and `_` is never emphasis.
 - A backslash escapes only markup characters, so `C:\Users\me\.config` keeps
   every backslash.
-- An `https` link opens in Helm's Browser tab; any other address shows as its
+- An `https` link opens in Floti's Browser tab; any other address shows as its
   text, with the address in the tooltip. Links in a criterion are text: the
   criterion is a button.
 
@@ -266,18 +266,18 @@ and the background module does that after each `create` or `update` a session
 makes.
 
 Project colours are names (`blue`, `orange`, `green`, `amber`, `pink`), drawn
-in a shade per light and dark theme by `pages/shared/work.css`; Helm has no
+in a shade per light and dark theme by `pages/shared/work.css`; Floti has no
 categorical palette yet.
 
 A plugin cannot open a folder picker, so a project's folders are typed or
 pasted as full paths; the quotes Explorer's "Copy as path" adds are dropped.
-Helm draws every select as `base-select`, which ignores `overflow` on the
+Floti draws every select as `base-select`, which ignores `overflow` on the
 select, so the plugin's selects carry a face of their own
 (`selectFace` in `pages/shared/dom.js`) that cuts a long option to one line.
 
 ## Tools for sessions
 
-Sessions Helm starts get four tools, as `mcp__helm-plugin-trackr__<name>`:
+Sessions Floti starts get four tools, as `mcp__floti-plugin-trackr__<name>`:
 
 ```
 find    one line per item, next up first; no arguments = open items in this folder's project
@@ -327,7 +327,7 @@ is not marked. A last line names the tool for each kind shown: the Artifact
 tool, the doc's connector, Read or WebFetch. Content is never inlined, so a
 reference costs one line.
 
-The tools load into every session Helm starts, whatever its folder; a project
+The tools load into every session Floti starts, whatever its folder; a project
 needs nothing. Claude Code still asks before each call unless it is allowed.
 The plugin sits above the projects, so the rule goes in the user settings,
 `~/.claude/settings.json`, where it covers every session:
@@ -336,10 +336,10 @@ The plugin sits above the projects, so the rule goes in the user settings,
 {
   "permissions": {
     "allow": [
-      "mcp__helm-plugin-trackr__find",
-      "mcp__helm-plugin-trackr__get",
-      "mcp__helm-plugin-trackr__create",
-      "mcp__helm-plugin-trackr__update"
+      "mcp__floti-plugin-trackr__find",
+      "mcp__floti-plugin-trackr__get",
+      "mcp__floti-plugin-trackr__create",
+      "mcp__floti-plugin-trackr__update"
     ]
   }
 }
@@ -351,14 +351,14 @@ preceded by one tool search. A plugin cannot change that.
 ## Plugin API version 2
 
 Trackr is a version 2 plugin (`apiVersion` 2 in the manifest). Its pages
-reach Helm through `window.floti`, and its background is a module,
+reach Floti through `window.floti`, and its background is a module,
 `pages/background.js`, that the host runs in an isolate of its own with `floti`
 and BroadcastChannel and no window. The module imports only Trackr's own
 files, by relative path, and what it and `pages/shared/work.js` run as they
 load uses neither tabs, the surface nor localStorage. The service and the
 database are the same as at version 1.
 
-## What Helm does not give a plugin yet
+## What Floti does not give a plugin yet
 
 A folder cannot be picked, a tab cannot close itself, read-only tools still
 ask, and the theme has no categorical colours. What the plugin does instead is
@@ -368,31 +368,30 @@ described above, next to each feature.
 
 `~/.config/floti/data/trackr/trackr.db`, outside the plugin's folder, so it
 survives a reinstall of the plugin, and Floti's watch on the plugin's files
-never sees it change. On a computer where Floti still reads Helm's
-`~/.config/helm` and has no database of its own yet, it is
-`~/.config/helm/data/trackr/trackr.db`, which moves with that folder. `HELM_TRACKR_DB` moves it. The file is opened in WAL mode and writes take the lock up front, so
-two Helms can have it open at once.
+never sees it change. `TRACKR_DB` moves it. The file is opened in WAL mode and
+writes take the lock up front, so the installed Floti and a dev build can have
+it open at once.
 
-The service runs on the Node inside Helm and uses `node:sqlite`; there are no
+The service runs on the Node inside Floti and uses `node:sqlite`; there are no
 runtime dependencies.
 
 ## Developing
 
-Helm reloads the plugin when the manifest, `pages/` or `service/` change.
-To try a change without touching your own data, point a Helm dev build at a
-copy with `HELM_TRACKR_DB`.
+Floti reloads the plugin when the manifest, `pages/` or `service/` change.
+To try a change without touching your own data, point a Floti dev build at a
+copy with `TRACKR_DB`.
 
 ```
 npm install
-npm run check        # typecheck, tests, helm-plugin validate
+npm run check        # typecheck, tests, floti-plugin validate
 npm test             # tests only
 ```
 
 The tests need Node 22.13 or later for `node:sqlite`. To run them on the Node
-Helm gives the service:
+Floti gives the service:
 
 ```
-ELECTRON_RUN_AS_NODE=1 "$LOCALAPPDATA/Programs/Helm/Helm.exe" --test "test/**/*.test.mjs"
+"$LOCALAPPDATA/Programs/Floti/bin/node/node.exe" --test "test/**/*.test.mjs"
 ```
 
 ## Licence

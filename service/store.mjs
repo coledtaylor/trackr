@@ -144,7 +144,7 @@ const REF_SELECT = `
  * their internal `uid`; portfolios by key or uid; projects by uid, or by name
  * inside a portfolio.
  *
- * The file may be open in two processes at once (the installed Helm and a dev
+ * The file may be open in two processes at once (the installed Floti and a dev
  * build): WAL lets readers run beside a writer, writes take the lock up front
  * (`BEGIN IMMEDIATE`) and wait up to five seconds for it.
  */
@@ -2700,7 +2700,7 @@ function optionalText(value, field, max) {
 /** @param {unknown} value */
 function portfolioKey(value) {
   const key = typeof value === 'string' ? value.trim().toUpperCase() : ''
-  if (!PORTFOLIO_KEY.test(key)) throw invalid('A portfolio key is a letter then up to nine letters or digits, like TC or HELM.')
+  if (!PORTFOLIO_KEY.test(key)) throw invalid('A portfolio key is a letter then up to nine letters or digits, like TC or FLOTI.')
   return key
 }
 
