@@ -82,14 +82,14 @@ function head(overview) {
         ])
       ]),
       el('div', { class: 'pf-actions' }, [
-        el('button', { class: 'helm-button pf-action', attrs: { type: 'button' }, on: opens((how) => openWorkflow(portfolio, undefined, how)) }, [
+        el('button', { class: 'floti-button pf-action', attrs: { type: 'button' }, on: opens((how) => openWorkflow(portfolio, undefined, how)) }, [
           lineIcon(ICONS.sliders, 13, 1.7),
           'Workflow'
         ]),
         el(
           'button',
           {
-            class: 'helm-button pf-action',
+            class: 'floti-button pf-action',
             attrs: { type: 'button', 'data-variant': 'primary', disabled: portfolio.projects.length === 0 },
             title: portfolio.projects.length === 0 ? 'Add a project first' : 'New task',
             on: { click: () => void openTaskDialog(portfolio.uid, null) }
@@ -101,7 +101,7 @@ function head(overview) {
     portfolio.projects.length === 0
       ? el('div', { class: 'pf-none' }, [
           el('p', { class: 'quiet', text: 'No projects yet. Tasks live in projects, and a project’s folders tell sessions where they are.' }),
-          el('button', { class: 'helm-button pf-action', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio, 'new') } }, [
+          el('button', { class: 'floti-button pf-action', attrs: { type: 'button' }, on: { click: () => void openWorkflow(portfolio, 'new') } }, [
             lineIcon(ICONS.plus, 13, 1.8),
             'Add a project'
           ])
@@ -204,8 +204,8 @@ function sparkline(series) {
   const points = series.map((v, i) => `${x(i)},${y(v)}`).join(' ')
   const last = series.length - 1
   return svg('svg', { viewBox: `0 0 ${width} ${height}`, width, height, role: 'img', 'aria-label': `Open tasks over the last ${series.length} days` }, [
-    svg('polyline', { points, fill: 'none', stroke: 'var(--helm-accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }),
-    svg('circle', { cx: x(last), cy: y(series[last]), r: 3, fill: 'var(--helm-accent)', stroke: 'var(--helm-surface-raised)', 'stroke-width': 2 })
+    svg('polyline', { points, fill: 'none', stroke: 'var(--floti-accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }),
+    svg('circle', { cx: x(last), cy: y(series[last]), r: 3, fill: 'var(--floti-accent)', stroke: 'var(--floti-surface-raised)', 'stroke-width': 2 })
   ])
 }
 
@@ -233,7 +233,7 @@ function weekBars(days) {
     days.map((n, i) =>
       el('span', {
         title: `${DAYS[i]}: ${n} done`,
-        style: { height: `${n === 0 ? 2 : Math.max(5, Math.round((n / max) * 28))}px`, background: n === 0 ? 'var(--helm-border-strong)' : 'var(--helm-success)' }
+        style: { height: `${n === 0 ? 2 : Math.max(5, Math.round((n / max) * 28))}px`, background: n === 0 ? 'var(--floti-border-strong)' : 'var(--floti-success)' }
       })
     )
   )
@@ -319,9 +319,9 @@ function initiativeCard(initiative) {
 function epics(overview) {
   const projects = overview.portfolio.projects
   const legend = el('span', { class: 'pf-legend' }, [
-    el('span', {}, [pip('done', 'var(--helm-fg-muted)'), 'done']),
-    el('span', {}, [pip('active', 'var(--helm-fg-muted)'), 'in progress']),
-    el('span', {}, [pip('open', 'var(--helm-fg-subtle)'), 'open']),
+    el('span', {}, [pip('done', 'var(--floti-fg-muted)'), 'done']),
+    el('span', {}, [pip('active', 'var(--floti-fg-muted)'), 'in progress']),
+    el('span', {}, [pip('open', 'var(--floti-fg-subtle)'), 'open']),
     el('span', {}, [lineIcon(ICONS.home, 11, 2), 'home project'])
   ])
   const headRow = el('div', { class: 'pf-matrix-row pf-matrix-head' }, [
@@ -371,7 +371,7 @@ function epicRow(epic, projects) {
         ]),
         el('span', { class: 'pf-epic-progress' }, [
           el('span', { class: 'pf-bar' }, [
-            el('span', { style: { width: `${pct}%`, background: epic.status.group === 'done' ? 'var(--helm-success)' : 'var(--helm-accent)' } })
+            el('span', { style: { width: `${pct}%`, background: epic.status.group === 'done' ? 'var(--floti-success)' : 'var(--floti-accent)' } })
           ]),
           el('span', { text: spanText })
         ])

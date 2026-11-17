@@ -219,7 +219,7 @@ export function createWorkflowView(root, uid, host) {
     const groupField = editing.field(`${key}.group`, () => {
       const select = el(
         'select',
-        { class: 'helm-select it-select wf-group-select', attrs: { 'aria-label': 'Group' } },
+        { class: 'floti-select it-select wf-group-select', attrs: { 'aria-label': 'Group' } },
         [selectFace(), ...STATUS_GROUPS.map((option) => el('option', { text: option.label, attrs: { value: option.group } }))]
       )
       select.value = status?.group ?? group
@@ -288,7 +288,7 @@ export function createWorkflowView(root, uid, host) {
     const select = /** @type {HTMLSelectElement} */ (
       el(
         'select',
-        { class: 'helm-select' },
+        { class: 'floti-select' },
         [
           selectFace(),
           ...statusesByGroup(others)
@@ -416,7 +416,7 @@ export function createWorkflowView(root, uid, host) {
   async function deletePriority(settings, priority, count) {
     const others = settings.portfolio.priorities.filter((other) => other.uid !== priority.uid)
     const select = /** @type {HTMLSelectElement} */ (
-      el('select', { class: 'helm-select' }, [selectFace(), ...others.map((other) => el('option', { text: other.name, attrs: { value: other.uid } }))])
+      el('select', { class: 'floti-select' }, [selectFace(), ...others.map((other) => el('option', { text: other.name, attrs: { value: other.uid } }))])
     )
     const plain = settings.portfolio.priorities.map((other) => ({ ...other, group: '' }))
     select.value = String(replacementStatus(plain, priority.uid)?.uid ?? '')
@@ -548,7 +548,7 @@ export function createWorkflowView(root, uid, host) {
     const folderField = lineField(editing, `${key}.folder`, {
       label: 'Add a folder',
       placeholder: 'C:\\Users\\you\\repos\\app · Enter adds',
-      className: 'helm-input it-input work-mono wf-folder-input',
+      className: 'floti-input it-input work-mono wf-folder-input',
       onEnter: () => {
         if (!addFolder()) void save()
       },
@@ -615,16 +615,16 @@ export function createWorkflowView(root, uid, host) {
   function portfolioCard(settings) {
     const { portfolio } = settings
     const name = synced('portfolio.name', portfolio.name, () =>
-      el('input', { class: 'helm-input it-input', attrs: { type: 'text', 'aria-label': 'Name', maxlength: 120, autocomplete: 'off' } })
+      el('input', { class: 'floti-input it-input', attrs: { type: 'text', 'aria-label': 'Name', maxlength: 120, autocomplete: 'off' } })
     )
     const key = synced('portfolio.key', portfolio.key, () =>
       el('input', {
-        class: 'helm-input it-input work-mono wf-key',
+        class: 'floti-input it-input work-mono wf-key',
         attrs: { type: 'text', 'aria-label': 'Key', maxlength: 10, autocomplete: 'off', spellcheck: 'false' }
       })
     )
     const description = synced('portfolio.description', portfolio.description, () =>
-      el('textarea', { class: 'helm-textarea it-textarea wf-description', attrs: { 'aria-label': 'Description', rows: 2, maxlength: 2000 } })
+      el('textarea', { class: 'floti-textarea it-textarea wf-description', attrs: { 'aria-label': 'Description', rows: 2, maxlength: 2000 } })
     )
     const save = /** @type {HTMLButtonElement} */ (button('Save', null, () => void savePortfolio(settings, name, key, description), 'primary'))
     const sample = el('span', { class: 'work-mono' })

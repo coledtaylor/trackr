@@ -61,7 +61,7 @@ async function load() {
     fill(root, [
       el('div', { class: 'state', attrs: { role: 'alert' } }, [
         el('p', { class: 'quiet', text: gone ? GONE[kind] : message }),
-        gone ? null : el('button', { class: 'helm-button', text: 'Try again', attrs: { type: 'button' }, on: { click: () => void load() } })
+        gone ? null : el('button', { class: 'floti-button', text: 'Try again', attrs: { type: 'button' }, on: { click: () => void load() } })
       ])
     ])
     if (gone) floti.surface.setTitle('Gone')

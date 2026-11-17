@@ -36,18 +36,18 @@ body {
   align-items: center;
   gap: 7px;
   padding: 0 9px;
-  background: var(--helm-surface-sunken);
-  border: 1px solid var(--helm-border);
-  border-radius: var(--helm-radius-well);
-  color: var(--helm-fg-subtle);
+  background: var(--floti-surface-sunken);
+  border: 1px solid var(--floti-border);
+  border-radius: var(--floti-radius-well);
+  color: var(--floti-fg-subtle);
 }
 
 .find:hover {
-  border-color: var(--helm-border-strong);
+  border-color: var(--floti-border-strong);
 }
 
 .find:focus-within {
-  border-color: var(--helm-accent);
+  border-color: var(--floti-accent);
 }
 
 .find input {
@@ -58,13 +58,13 @@ body {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
   font: inherit;
   font-size: 12.5px;
 }
 
 .find input::placeholder {
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .find input::-webkit-search-cancel-button {
@@ -93,13 +93,13 @@ body {
 
 .cap-note {
   font-size: 10.5px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .quiet {
   margin: 0 2px 4px;
   font-size: 12px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 /* Doing now */
@@ -109,9 +109,9 @@ body {
   box-sizing: border-box;
   margin-bottom: 4px;
   padding: 7px 8px;
-  border: 1px solid var(--helm-border);
-  border-radius: var(--helm-radius);
-  background: var(--helm-surface-raised);
+  border: 1px solid var(--floti-border);
+  border-radius: var(--floti-radius);
+  background: var(--floti-surface-raised);
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
@@ -121,11 +121,11 @@ body {
 }
 
 .dn:hover {
-  border-color: var(--helm-border-strong);
+  border-color: var(--floti-border-strong);
 }
 
 .dn[aria-current='true'] {
-  border-color: var(--helm-accent);
+  border-color: var(--floti-accent);
 }
 
 .dn-line,
@@ -145,7 +145,7 @@ body {
   padding-left: 20px;
   box-sizing: border-box;
   font-size: 11px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .dn-meta > span {
@@ -154,11 +154,11 @@ body {
 
 .dn-meta > .dn-session {
   flex-shrink: 1;
-  color: var(--helm-accent-text);
+  color: var(--floti-accent-text);
 }
 
 .dn-meta > .dn-session.is-stopped {
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 /* Portfolios and projects */
@@ -166,7 +166,7 @@ body {
 .prow,
 .jrow {
   position: relative;
-  border-radius: var(--helm-radius);
+  border-radius: var(--floti-radius);
 }
 
 .prow {
@@ -177,12 +177,12 @@ body {
 
 .prow:hover,
 .jrow:hover {
-  background: var(--helm-hover);
+  background: var(--floti-hover);
 }
 
 .prow[aria-current='true'],
 .jrow[aria-current='true'] {
-  background: var(--helm-active);
+  background: var(--floti-active);
 }
 
 .prow[aria-current='true']::before,
@@ -191,7 +191,7 @@ body {
   position: absolute;
   width: 2px;
   border-radius: 2px;
-  background: var(--helm-accent);
+  background: var(--floti-accent);
 }
 
 .prow[aria-current='true']::before {
@@ -215,7 +215,7 @@ body {
   gap: 8px;
   padding: 0 2px 0 6px;
   border: 0;
-  border-radius: var(--helm-radius);
+  border-radius: var(--floti-radius);
   background: transparent;
   font-size: 13px;
   text-align: left;
@@ -225,9 +225,9 @@ body {
 .prow-main .work-tile {
   width: 20px;
   height: 20px;
-  background: var(--helm-surface-raised);
-  border: 1px solid var(--helm-border-strong);
-  color: var(--helm-fg-muted);
+  background: var(--floti-surface-raised);
+  border: 1px solid var(--floti-border-strong);
+  color: var(--floti-fg-muted);
   font-size: 8.5px;
 }
 
@@ -248,7 +248,7 @@ body {
 .count {
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   font-variant-numeric: tabular-nums;
 }
 
@@ -259,16 +259,16 @@ body {
   margin-right: 4px;
   padding: 0;
   border: 0;
-  border-radius: var(--helm-radius-well);
+  border-radius: var(--floti-radius-well);
   background: transparent;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   display: grid;
   place-items: center;
   cursor: pointer;
 }
 
 .chev:hover {
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 /* New project: shown in the count's place while the row is hovered or has
@@ -283,16 +283,16 @@ body {
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: var(--helm-radius-well);
+  border-radius: var(--floti-radius-well);
   background: transparent;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   cursor: pointer;
   opacity: 0;
 }
 
 .prow-add:hover {
-  background: var(--helm-hover);
-  color: var(--helm-fg);
+  background: var(--floti-hover);
+  color: var(--floti-fg);
 }
 
 .prow:hover .prow-add,
@@ -308,7 +308,7 @@ body {
 .projects {
   margin: 2px 0 6px 15px;
   padding-left: 9px;
-  border-left: 1px solid var(--helm-border);
+  border-left: 1px solid var(--floti-border);
 }
 
 .projects .quiet {
@@ -330,7 +330,7 @@ body {
 }
 
 .jrow .work-ellip {
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .jrow-icon {
@@ -338,11 +338,11 @@ body {
   flex-shrink: 0;
   display: flex;
   justify-content: center;
-  color: var(--helm-accent);
+  color: var(--floti-accent);
 }
 
 .jrow[aria-current='true'] .work-ellip {
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 .cap-add {
@@ -354,23 +354,23 @@ body {
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: var(--helm-radius-well);
+  border-radius: var(--floti-radius-well);
   background: transparent;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   cursor: pointer;
 }
 
 .cap-add:hover {
-  background: var(--helm-hover);
-  color: var(--helm-fg);
+  background: var(--floti-hover);
+  color: var(--floti-fg);
 }
 
 .jrow-add {
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .jrow-add:hover {
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 .jrow-add svg {
@@ -391,7 +391,7 @@ body {
   line-height: 1.5;
 }
 
-.empty .helm-button {
+.empty .floti-button {
   gap: 6px;
 }
 
@@ -414,7 +414,7 @@ body {
 .state-text {
   margin: 0;
   font-size: 12px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 /* New task */
@@ -426,7 +426,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 0 6px 0 14px;
-  border-bottom: 1px solid var(--helm-border);
+  border-bottom: 1px solid var(--floti-border);
 }
 
 .new-head-title {
@@ -476,6 +476,6 @@ body {
   justify-content: flex-end;
   gap: 8px;
   padding: 10px;
-  border-top: 1px solid var(--helm-border);
+  border-top: 1px solid var(--floti-border);
 }
 

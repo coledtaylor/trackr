@@ -28,7 +28,7 @@ import { ICONS, el, lineIcon } from './dom.js'
  * @returns {DialogHandle}
  */
 export function openDialog(options) {
-  const close = el('button', { class: 'helm-icon-button', title: 'Close', attrs: { type: 'button', 'aria-label': 'Close' } }, [lineIcon(ICONS.close, 13, 2)])
+  const close = el('button', { class: 'floti-icon-button', title: 'Close', attrs: { type: 'button', 'aria-label': 'Close' } }, [lineIcon(ICONS.close, 13, 2)])
   const dialog = el(
     'dialog',
     {
@@ -111,16 +111,16 @@ export function confirmDanger(options) {
     let done = false
     const error = el('p', { class: 'work-dialog-error', attrs: { role: 'alert', hidden: true } })
     const confirm = /** @type {HTMLButtonElement} */ (
-      el('button', { class: 'helm-button', text: options.confirm, attrs: { type: 'button', 'data-variant': 'danger' } })
+      el('button', { class: 'floti-button', text: options.confirm, attrs: { type: 'button', 'data-variant': 'danger' } })
     )
-    const cancel = el('button', { class: 'helm-button', text: options.refusal ? 'Close' : 'Cancel', attrs: { type: 'button', 'data-variant': options.refusal ? null : 'ghost' } })
+    const cancel = el('button', { class: 'floti-button', text: options.refusal ? 'Close' : 'Cancel', attrs: { type: 'button', 'data-variant': options.refusal ? null : 'ghost' } })
     /** @type {HTMLInputElement | null} */
     let typed = null
     if (options.typeToConfirm !== undefined) {
       const expected = options.typeToConfirm
       typed = /** @type {HTMLInputElement} */ (
         el('input', {
-          class: 'helm-input work-dialog-typed',
+          class: 'floti-input work-dialog-typed',
           attrs: { type: 'text', autocomplete: 'off', spellcheck: 'false', 'aria-label': `Type ${expected} to confirm`, placeholder: expected }
         })
       )

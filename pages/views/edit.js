@@ -242,7 +242,7 @@ function deleteLines(item) {
 export function iconButton(label, icon, onClick, extraClass = '') {
   return el(
     'button',
-    { class: `helm-icon-button it-icon-button ${extraClass}`.trim(), title: label, attrs: { type: 'button', 'aria-label': label }, on: { click: onClick } },
+    { class: `floti-icon-button it-icon-button ${extraClass}`.trim(), title: label, attrs: { type: 'button', 'aria-label': label }, on: { click: onClick } },
     [lineIcon(icon, 13, 1.8)]
   )
 }
@@ -256,7 +256,7 @@ export function iconButton(label, icon, onClick, extraClass = '') {
  * @param {'primary' | 'ghost' | 'danger' | null} [variant]
  */
 export function button(text, icon, onClick, variant = null) {
-  return el('button', { class: 'helm-button it-button', attrs: { type: 'button', 'data-variant': variant }, on: { click: onClick } }, [
+  return el('button', { class: 'floti-button it-button', attrs: { type: 'button', 'data-variant': variant }, on: { click: onClick } }, [
     icon ? lineIcon(icon, 12, 1.8) : null,
     text
   ])
@@ -454,7 +454,7 @@ export function stamp(editing, item) {
     el('p', { class: 'it-stamp', text: `${created} · updated ${ago === 'now' ? 'just now' : `${ago} ago`}` }),
     el(
       'button',
-      { class: 'helm-button it-delete', title: `Delete ${item.id}`, attrs: { type: 'button', 'data-variant': 'danger' }, on: { click: () => void editing.remove(item) } },
+      { class: 'floti-button it-delete', title: `Delete ${item.id}`, attrs: { type: 'button', 'data-variant': 'danger' }, on: { click: () => void editing.remove(item) } },
       [lineIcon(TRASH, 12, 1.8), 'Delete']
     )
   ])
@@ -488,7 +488,7 @@ export function editorActions(onSave, onCancel, hint) {
 export function textArea(editing, key, options) {
   return editing.field(key, () => {
     const area = el('textarea', {
-      class: 'helm-textarea it-textarea',
+      class: 'floti-textarea it-textarea',
       attrs: { 'aria-label': options.label, placeholder: options.placeholder ?? '', rows: options.rows ?? 4 }
     })
     area.value = options.value
@@ -515,7 +515,7 @@ export function textArea(editing, key, options) {
 export function lineField(editing, key, options) {
   return editing.field(key, () => {
     const input = el('input', {
-      class: options.className ?? 'helm-input it-input',
+      class: options.className ?? 'floti-input it-input',
       attrs: { type: 'text', 'aria-label': options.label, placeholder: options.placeholder ?? '', autocomplete: 'off', spellcheck: 'false' }
     })
     input.value = options.value ?? ''
@@ -625,7 +625,7 @@ export function descriptionSection(editing, item) {
 export function propertySelect(label, options, value, onChange) {
   const select = el(
     'select',
-    { class: 'helm-select it-select', attrs: { 'aria-label': label }, on: { change: () => onChange(select.value) } },
+    { class: 'floti-select it-select', attrs: { 'aria-label': label }, on: { change: () => onChange(select.value) } },
     [selectFace(), ...options.map(([key, text]) => el('option', { text, attrs: { value: key, selected: key === value } }))]
   )
   select.value = value
@@ -820,7 +820,7 @@ function linkForm(editing) {
   const kind = editing.field('link.kind', () => {
     const select = el(
       'select',
-      { class: 'helm-select it-select', attrs: { 'aria-label': 'Kind' } },
+      { class: 'floti-select it-select', attrs: { 'aria-label': 'Kind' } },
       LINK_KINDS.map(([key, text]) => el('option', { text, attrs: { value: key } }))
     )
     return select

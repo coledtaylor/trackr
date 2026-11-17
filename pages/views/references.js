@@ -238,7 +238,7 @@ function referenceForm(editing, data, write, reference) {
       const select = el(
         'select',
         {
-          class: 'helm-select it-select',
+          class: 'floti-select it-select',
           attrs: { 'aria-label': 'Kind' },
           on: {
             change: () => {

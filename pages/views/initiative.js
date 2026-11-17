@@ -149,7 +149,7 @@ function addEpic(data, editing) {
     : el(
         'select',
         {
-          class: 'helm-select it-select in-join',
+          class: 'floti-select it-select in-join',
           attrs: { 'aria-label': 'Add an epic that is in no initiative' },
           on: {
             change: (/** @type {Event} */ event) => {

@@ -62,7 +62,7 @@ export function createItemView(root, uid, host) {
     fill(root, [
       el('div', { class: 'state', attrs: { role: 'status' } }, [
         el('p', { class: 'quiet', text: `${item.id} ${item.title} was deleted.` }),
-        el('button', { class: 'helm-button', text: `Open ${item.project.name}`, attrs: { type: 'button' }, on: opens((how) => openProject(item.project, how)) })
+        el('button', { class: 'floti-button', text: `Open ${item.project.name}`, attrs: { type: 'button' }, on: opens((how) => openProject(item.project, how)) })
       ])
     ])
     floti.surface.setTitle(`${item.id} deleted`)
