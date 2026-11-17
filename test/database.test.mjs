@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { defaultDatabasePath } from '../service/main.mjs'
@@ -93,8 +92,46 @@ describe('an existing trackr.db at apiVersion 2', () => {
     }
   })
 
-  test('without HELM_TRACKR_DB the database is where it has always been', () => {
-    assert.equal(defaultDatabasePath(), join(homedir(), '.config', 'helm', 'data', 'trackr', 'trackr.db'))
+  describe('without HELM_TRACKR_DB', () => {
+    /** @type {{ dir: string, remove: () => void }} */
+    let home
+    before(() => {
+      home = tempDir()
+    })
+    after(() => home.remove())
+
+    /**
+     * A fresh home folder holding `files`, each made with its folders.
+     *
+     * @param {string} name
+     * @param {string[]} files
+     */
+    function homeWith(name, files) {
+      const dir = join(home.dir, name)
+      mkdirSync(dir)
+      for (const file of files) {
+        mkdirSync(join(dir, file, '..'), { recursive: true })
+        writeFileSync(join(dir, file), '')
+      }
+      return dir
+    }
+    const floti = join('.config', 'floti', 'data', 'trackr', 'trackr.db')
+    const helm = join('.config', 'helm', 'data', 'trackr', 'trackr.db')
+
+    test("the database is in Floti's config folder", () => {
+      const dir = homeWith('fresh', [])
+      assert.equal(defaultDatabasePath(dir), join(dir, floti))
+    })
+
+    test("it stays in Helm's config folder until Floti has moved that folder", () => {
+      const dir = homeWith('not moved', [helm])
+      assert.equal(defaultDatabasePath(dir), join(dir, helm))
+    })
+
+    test('once moved, a Helm folder made again later does not take it back', () => {
+      const dir = homeWith('moved', [floti, helm])
+      assert.equal(defaultDatabasePath(dir), join(dir, floti))
+    })
   })
 })
 

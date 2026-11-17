@@ -366,9 +366,11 @@ described above, next to each feature.
 
 ## Where the data lives
 
-`~/.config/helm/data/trackr/trackr.db`, outside the plugin's folder, so it
-survives a reinstall of the plugin, and Helm's watch on the plugin's files
-never sees it change. `HELM_TRACKR_DB` moves it. The file is opened in WAL mode and writes take the lock up front, so
+`~/.config/floti/data/trackr/trackr.db`, outside the plugin's folder, so it
+survives a reinstall of the plugin, and Floti's watch on the plugin's files
+never sees it change. On a computer where Floti still reads Helm's
+`~/.config/helm` and has no database of its own yet, it is
+`~/.config/helm/data/trackr/trackr.db`, which moves with that folder. `HELM_TRACKR_DB` moves it. The file is opened in WAL mode and writes take the lock up front, so
 two Helms can have it open at once.
 
 The service runs on the Node inside Helm and uses `node:sqlite`; there are no

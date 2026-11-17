@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -25,11 +26,19 @@ const MAX_BODY = 16 * 1024 * 1024
 
 /**
  * Where the database lives unless `HELM_TRACKR_DB` says otherwise: beside
- * Helm's config, outside the plugin folder, so it survives a reinstall and the
- * installed and dev Helm share it.
+ * Floti's config, outside the plugin folder, so it survives a reinstall and the
+ * installed and dev Floti share it. That is `~/.config/floti`, except while
+ * Floti still reads Helm's `~/.config/helm` (it has not moved that folder yet)
+ * and holds no database of its own: there the database is in Helm's folder and
+ * moves with it.
+ *
+ * @param {string} [home]
  */
-export function defaultDatabasePath() {
-  return join(homedir(), '.config', 'helm', 'data', 'trackr', 'trackr.db')
+export function defaultDatabasePath(home = homedir()) {
+  const config = join(home, '.config')
+  const floti = join(config, 'floti', 'data', 'trackr', 'trackr.db')
+  if (existsSync(floti) || !existsSync(join(config, 'helm'))) return floti
+  return join(config, 'helm', 'data', 'trackr', 'trackr.db')
 }
 
 /**
