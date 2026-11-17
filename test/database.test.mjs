@@ -20,7 +20,7 @@ describe('an existing trackr.db at apiVersion 2', () => {
   const { dir, remove } = tempDir()
   const data = join(dir, 'existing data')
   const file = join(data, 'trackr.db')
-  const manifest = JSON.parse(readFileSync(new URL('../helm-plugin.json', import.meta.url), 'utf8'))
+  const manifest = JSON.parse(readFileSync(new URL('../floti-plugin.json', import.meta.url), 'utf8'))
   /** @type {Awaited<ReturnType<typeof startService>>} */
   let service
   /** @type {string[]} */

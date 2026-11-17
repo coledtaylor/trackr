@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * The pages' way to the Trackr service and to each other.
  *

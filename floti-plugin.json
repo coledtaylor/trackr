@@ -1,5 +1,5 @@
 {
-  "$schema": "./node_modules/@coledtaylor/helm-plugin-sdk/helm-plugin.schema.json",
+  "$schema": "./node_modules/@floti-dev/plugin-sdk/floti-plugin.schema.json",
   "apiVersion": 2,
   "id": "trackr",
   "name": "Trackr",

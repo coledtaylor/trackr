@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * The background module: answers the tools the manifest offers Claude Code
  * sessions, and keeps the rail badge at the number of tasks in progress.
@@ -20,7 +20,7 @@ import { announceChange, listen, rpc } from './shared/work.js'
  * `floti` is a page's bridge. Here it is the background's, which has no
  * window to open anything in.
  */
-const host = /** @type {import('@coledtaylor/helm-plugin-sdk').FlotiBackground} */ (/** @type {unknown} */ (floti))
+const host = /** @type {import('@floti-dev/plugin-sdk').FlotiBackground} */ (/** @type {unknown} */ (floti))
 
 const TOOLS = ['find', 'get', 'create', 'update']
 const WRITES = new Set(['create', 'update'])

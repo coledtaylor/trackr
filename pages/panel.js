@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * The sidebar panel: what is in progress across every portfolio, the
  * portfolios with their projects, find by title or ID, and the forms for a new

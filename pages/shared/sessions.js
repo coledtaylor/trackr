@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * Whether the session on a task still runs, from Helm's session list.
  *

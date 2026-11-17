@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * What the epic and task views share: the writes, editors that keep what was
  * typed when the page draws again, and the pieces both views draw (the title,

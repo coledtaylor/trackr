@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A project: its tasks as a list grouped by status, each group in
  * its own box, or as a board with a column per status. Filters by epic,

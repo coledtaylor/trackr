@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * The new task form: title, project, epic, status, priority and description.
  * A toggle makes it an epic instead, which has a home project and goes in an

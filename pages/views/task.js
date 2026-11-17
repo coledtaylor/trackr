@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A task: chips under the title, the description, acceptance criteria, where
  * it stands with the log under it, and beside them its fields, dependencies,

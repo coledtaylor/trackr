@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * An initiative, an epic or a task: reads what the view needs and draws
  * `initiative.js`, `epic.js` or `task.js`. Drawing again keeps an open

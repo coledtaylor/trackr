@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * References: what the work follows (design documents, artifacts, files and
  * pages), on the portfolio, project, epic and task pages. A row has its

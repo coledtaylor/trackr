@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A sequence: the stages a piece of work is done in, first to last, as a
  * grid. Stages run across, each with its goal and how far along it is, the

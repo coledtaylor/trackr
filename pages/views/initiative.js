@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * An initiative: connected epics across the portfolio's projects, and the
  * sequence their work is done in. Its sequence runs the width of the page

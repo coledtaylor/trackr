@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A portfolio's workflow: its statuses in their groups, its priorities, its
  * projects with their colours and folders, and the portfolio itself (name,

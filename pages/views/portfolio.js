@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A portfolio: a card per project, four stat cards, its initiatives with
  * where their sequences stand, the epics counted across projects, the tasks

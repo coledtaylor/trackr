@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * The view tab: a portfolio, its workflow, a project or an item, by the tab's parameters
  * `{ kind, uid }`. Each kind is drawn by its module in `views/`; this page
