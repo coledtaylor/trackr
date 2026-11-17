@@ -1,7 +1,7 @@
 {
   "name": "trackr",
   "version": "0.2.0",
-  "description": "Work tracking for Helm: portfolios, projects, initiatives, epics and tasks, and the order they are done in, in one SQLite file, with tools for Claude Code sessions.",
+  "description": "Work tracking for Floti: portfolios, projects, initiatives, epics and tasks, and the order they are done in, in one SQLite file, with tools for Claude Code sessions.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -15,11 +15,11 @@
   "scripts": {
     "test": "node --test --test-reporter=dot \"test/**/*.test.mjs\"",
     "typecheck": "tsc -p . && tsc -p tsconfig.pages.json",
-    "validate": "helm-plugin validate",
+    "validate": "floti-plugin validate",
     "check": "npm run typecheck && npm test && npm run validate"
   },
   "devDependencies": {
-    "@coledtaylor/helm-plugin-sdk": "^1.5.0",
+    "@floti-dev/plugin-sdk": "^2.0.0",
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3"
   }

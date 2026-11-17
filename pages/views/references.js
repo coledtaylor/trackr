@@ -1,9 +1,9 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * References: what the work follows (design documents, artifacts, files and
  * pages), on the portfolio, project, epic and task pages. A row has its
  * kind's icon, its name and the line that says when to read it. Pressing it
- * opens an address in Helm's Browser tab and a file with the program the
+ * opens an address in Floti's Browser tab and a file with the program the
  * computer opens it with (a program is shown in its folder, never run), and
  * copies what neither takes: a plain http address, a file that is gone. A key
  * reference, which everything under its owner sees too,
@@ -238,7 +238,7 @@ function referenceForm(editing, data, write, reference) {
       const select = el(
         'select',
         {
-          class: 'helm-select it-select',
+          class: 'floti-select it-select',
           attrs: { 'aria-label': 'Kind' },
           on: {
             change: () => {

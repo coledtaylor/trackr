@@ -921,7 +921,7 @@ describe('the service route', () => {
       body: { error: { code: 'not-found', message: 'TC-2 does not exist.' } }
     })
     assert.equal(dispatchTool(store, { name: 'delete', args: {}, session: s3 }).status, 400)
-    // A session Helm described oddly still gets an answer, logged as "a session".
+    // A session Floti described oddly still gets an answer, logged as "a session".
     assert.equal(dispatchTool(store, { name: 'update', args: { items: [{ id: 'TC-1', log: 'x' }] } }, format).status, 200)
     assert.equal(store.getItem('TC-1').log.entries.at(-1)?.by, 'a session')
   })

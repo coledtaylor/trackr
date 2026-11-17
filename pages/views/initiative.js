@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * An initiative: connected epics across the portfolio's projects, and the
  * sequence their work is done in. Its sequence runs the width of the page
@@ -149,7 +149,7 @@ function addEpic(data, editing) {
     : el(
         'select',
         {
-          class: 'helm-select it-select in-join',
+          class: 'floti-select it-select in-join',
           attrs: { 'aria-label': 'Add an epic that is in no initiative' },
           on: {
             change: (/** @type {Event} */ event) => {

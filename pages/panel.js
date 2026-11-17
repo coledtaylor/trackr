@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * The sidebar panel: what is in progress across every portfolio, the
  * portfolios with their projects, find by title or ID, and the forms for a new
@@ -120,7 +120,7 @@ function failed(message) {
   return el('div', { class: 'state', attrs: { role: 'alert' } }, [
     el('p', { class: 'state-title', text: 'The Trackr service did not answer' }),
     el('p', { class: 'state-text', text: message }),
-    el('button', { class: 'helm-button', text: 'Try again', attrs: { type: 'button' }, on: { click: () => void refresh() } })
+    el('button', { class: 'floti-button', text: 'Try again', attrs: { type: 'button' }, on: { click: () => void refresh() } })
   ])
 }
 
@@ -191,7 +191,7 @@ function portfolioTree(portfolios) {
       head,
       el('div', { class: 'empty' }, [
         el('p', { class: 'quiet', text: 'No portfolios yet. A portfolio holds projects, and its key starts every ID, like TC-123.' }),
-        el('button', { class: 'helm-button', attrs: { type: 'button', 'data-variant': 'primary' }, on: { click: () => openNewPortfolio() } }, [
+        el('button', { class: 'floti-button', attrs: { type: 'button', 'data-variant': 'primary' }, on: { click: () => openNewPortfolio() } }, [
           lineIcon(ICONS.plus, 12, 1.8),
           'New portfolio'
         ])
@@ -442,26 +442,26 @@ function openNewPortfolio() {
   let keyTouched = false
   const name = /** @type {HTMLInputElement} */ (
     el('input', {
-      class: 'helm-input work-form-title',
+      class: 'floti-input work-form-title',
       attrs: { type: 'text', 'aria-label': 'Name', placeholder: 'Name, like TideCast', maxlength: 120, autocomplete: 'off' }
     })
   )
   const key = /** @type {HTMLInputElement} */ (
     el('input', {
-      class: 'helm-input work-mono key-field',
+      class: 'floti-input work-mono key-field',
       attrs: { type: 'text', 'aria-label': 'Key', placeholder: 'TC', maxlength: 10, autocomplete: 'off', spellcheck: 'false' }
     })
   )
   const description = /** @type {HTMLTextAreaElement} */ (
     el('textarea', {
-      class: 'helm-textarea portfolio-description',
+      class: 'floti-textarea portfolio-description',
       attrs: { 'aria-label': 'Description', placeholder: 'What it covers, in a line', maxlength: 2000 }
     })
   )
   const example = el('span', { class: 'work-mono' })
   const error = el('p', { class: 'work-dialog-error', attrs: { role: 'alert', hidden: true } })
   const create = /** @type {HTMLButtonElement} */ (
-    el('button', { class: 'helm-button', text: 'Create portfolio', attrs: { type: 'button', 'data-variant': 'primary' } })
+    el('button', { class: 'floti-button', text: 'Create portfolio', attrs: { type: 'button', 'data-variant': 'primary' } })
   )
 
   const showExample = () => {
@@ -497,7 +497,7 @@ function openNewPortfolio() {
       return
     }
     if (!PORTFOLIO_KEY.test(keyText)) {
-      showError('A key is a letter, then up to nine letters or digits, like TC or HELM.')
+      showError('A key is a letter, then up to nine letters or digits, like TC or FLOTI.')
       key.focus()
       return
     }
@@ -562,8 +562,8 @@ function openNewPortfolio() {
  * @param {HTMLButtonElement} create
  */
 function showForm(title, meta, body, create) {
-  const cancel = el('button', { class: 'helm-button', text: 'Cancel', attrs: { type: 'button' }, on: { click: () => closeForm() } })
-  const close = el('button', { class: 'helm-icon-button', attrs: { type: 'button', 'aria-label': 'Close', title: 'Close' }, on: { click: () => closeForm() } }, [
+  const cancel = el('button', { class: 'floti-button', text: 'Cancel', attrs: { type: 'button' }, on: { click: () => closeForm() } })
+  const close = el('button', { class: 'floti-icon-button', attrs: { type: 'button', 'aria-label': 'Close', title: 'Close' }, on: { click: () => closeForm() } }, [
     lineIcon(ICONS.close, 13, 2)
   ])
   fill(newSection, [

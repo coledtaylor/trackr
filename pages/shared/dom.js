@@ -97,12 +97,12 @@ export const ICONS = {
 }
 
 const TONES = {
-  subtle: 'var(--helm-fg-subtle)',
-  muted: 'var(--helm-fg-muted)',
-  accent: 'var(--helm-accent)',
-  warn: 'var(--helm-warn)',
-  danger: 'var(--helm-danger)',
-  success: 'var(--helm-success)'
+  subtle: 'var(--floti-fg-subtle)',
+  muted: 'var(--floti-fg-muted)',
+  accent: 'var(--floti-accent)',
+  warn: 'var(--floti-warn)',
+  danger: 'var(--floti-danger)',
+  success: 'var(--floti-success)'
 }
 
 /**
@@ -112,11 +112,11 @@ const TONES = {
  * @param {string} name
  */
 export function colourVar(name) {
-  return /** @type {Record<string, string>} */ (TONES)[name] ?? `var(--work-${name}, var(--helm-fg-muted))`
+  return /** @type {Record<string, string>} */ (TONES)[name] ?? `var(--work-${name}, var(--floti-fg-muted))`
 }
 
 const NONE = 'M0 0'
-const SURFACE = 'var(--helm-surface)'
+const SURFACE = 'var(--floti-surface)'
 
 /**
  * The v2 board's status shapes. `glyph: 'self'` draws the glyph in the
@@ -231,9 +231,9 @@ export function tile(text, size, colour, extraClass = '') {
     style: {
       width: `${size}px`,
       height: `${size}px`,
-      background: c === null ? 'var(--helm-surface-raised)' : tint(c, 16),
-      border: `1px solid ${c === null ? 'var(--helm-border-strong)' : tint(c, 45)}`,
-      color: c ?? 'var(--helm-fg)'
+      background: c === null ? 'var(--floti-surface-raised)' : tint(c, 16),
+      border: `1px solid ${c === null ? 'var(--floti-border-strong)' : tint(c, 45)}`,
+      color: c ?? 'var(--floti-fg)'
     }
   })
 }
@@ -250,13 +250,13 @@ export function priorityGlyph(mark, name) {
   if (mark.urgent) {
     holder.append(
       svg('svg', { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true' }, [
-        svg('rect', { x: 1.5, y: 1.5, width: 13, height: 13, rx: 3, fill: 'var(--helm-danger)' }),
-        svg('path', { d: 'M8 4.6v4.2M8 11.3v.1', stroke: 'var(--helm-surface)', 'stroke-width': 2, 'stroke-linecap': 'round' })
+        svg('rect', { x: 1.5, y: 1.5, width: 13, height: 13, rx: 3, fill: 'var(--floti-danger)' }),
+        svg('path', { d: 'M8 4.6v4.2M8 11.3v.1', stroke: 'var(--floti-surface)', 'stroke-width': 2, 'stroke-linecap': 'round' })
       ])
     )
   } else if (mark.bars > 0) {
-    const on = mark.bars === 3 ? 'var(--helm-fg)' : 'var(--helm-fg-muted)'
-    const off = 'var(--helm-border-strong)'
+    const on = mark.bars === 3 ? 'var(--floti-fg)' : 'var(--floti-fg-muted)'
+    const off = 'var(--floti-border-strong)'
     holder.append(
       svg('svg', { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true' }, [
         svg('rect', { x: 1.5, y: 9, width: 3, height: 5, rx: 1, fill: on }),
@@ -299,7 +299,7 @@ export function sessionTile(session) {
  */
 export function epicChip(epic, withId) {
   return el('span', { class: 'work-chip', title: `${epic.id} ${epic.title}` }, [
-    svg('svg', { viewBox: '0 0 24 24', width: 10, height: 10, fill: 'none', stroke: 'var(--helm-accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'aria-hidden': 'true', class: 'work-noshrink' }, [svg('path', { d: ICONS.epic })]),
+    svg('svg', { viewBox: '0 0 24 24', width: 10, height: 10, fill: 'none', stroke: 'var(--floti-accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'aria-hidden': 'true', class: 'work-noshrink' }, [svg('path', { d: ICONS.epic })]),
     withId ? el('span', { class: 'work-chip-id', text: epic.id }) : null,
     el('span', { class: 'work-ellip', text: epic.title })
   ])
@@ -325,7 +325,7 @@ export function segments(counts, colour) {
   const parts = [
     { n: counts.done, bg: colour, title: `${counts.done} done` },
     { n: counts.active, bg: tint(colour, 55), title: `${counts.active} in progress` },
-    { n: counts.open, bg: 'var(--helm-border-strong)', title: `${counts.open} not started` }
+    { n: counts.open, bg: 'var(--floti-border-strong)', title: `${counts.open} not started` }
   ].filter((part) => part.n > 0)
   return el(
     'span',
@@ -360,7 +360,7 @@ export function toast(text) {
 
 /**
  * What a select shows when closed: the chosen option, cut to one line.
- * Helm draws every select as `base-select`, which ignores `overflow` on the
+ * Floti draws every select as `base-select`, which ignores `overflow` on the
  * select itself, so a long option (an epic's title) would run out of the box;
  * a face of its own can be cut. It goes first in the select.
  */

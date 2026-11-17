@@ -1,9 +1,9 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
- * Whether the session on a task still runs, from Helm's session list.
+ * Whether the session on a task still runs, from Floti's session list.
  *
  * An element that shows a session is marked with `markSession`. The page reads
- * Helm's list once, the first time it marks one, and repaints every marked
+ * Floti's list once, the first time it marks one, and repaints every marked
  * element in place when the `sessions` event says the list changed: a session
  * going from working to idle repaints a chip and never reloads a view.
  */
@@ -12,7 +12,7 @@ import { liveState, sessionPhrase } from './logic.js'
 
 /** @typedef {import('./logic.js').ListedSession} ListedSession */
 
-/** Null until Helm's list is read, and when it cannot be. */
+/** Null until Floti's list is read, and when it cannot be. */
 /** @type {ListedSession[] | null} */
 let sessions = null
 let watching = false
@@ -33,7 +33,7 @@ function watch() {
       sessions = list
       paintAll()
     },
-    (error) => console.warn('trackr: Helm did not list its sessions', error)
+    (error) => console.warn('trackr: Floti did not list its sessions', error)
   )
 }
 

@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A task: chips under the title, the description, acceptance criteria, where
  * it stands with the log under it, and beside them its fields, dependencies,
@@ -148,7 +148,7 @@ Open the sequence`,
 }
 
 /**
- * The session on the task, what it is doing now by Helm's session list, and
+ * The session on the task, what it is doing now by Floti's session list, and
  * a way to let it go.
  *
  * @param {Item} item
@@ -276,13 +276,13 @@ function ring(done, total) {
   const circumference = 2 * Math.PI * 7
   const length = total === 0 ? 0 : (done / total) * circumference
   return svg('svg', { viewBox: '0 0 20 20', width: 16, height: 16, class: 'it-ring', 'aria-hidden': 'true' }, [
-    svg('circle', { cx: 10, cy: 10, r: 7, fill: 'none', stroke: 'var(--helm-border-strong)', 'stroke-width': 3 }),
+    svg('circle', { cx: 10, cy: 10, r: 7, fill: 'none', stroke: 'var(--floti-border-strong)', 'stroke-width': 3 }),
     svg('circle', {
       cx: 10,
       cy: 10,
       r: 7,
       fill: 'none',
-      stroke: done === total ? 'var(--helm-success)' : 'var(--helm-accent)',
+      stroke: done === total ? 'var(--floti-success)' : 'var(--floti-accent)',
       'stroke-width': 3,
       'stroke-linecap': 'round',
       'stroke-dasharray': `${length} ${circumference}`
@@ -357,18 +357,18 @@ export function trackingSection(item, editing, state, redraw) {
 function standIcon(key) {
   if (key === 'done') {
     return svg('svg', { viewBox: '0 0 24 24', width: 15, height: 15, 'aria-hidden': 'true' }, [
-      svg('circle', { cx: 12, cy: 12, r: 8.5, fill: 'var(--helm-success)', stroke: 'var(--helm-success)', 'stroke-width': 2 }),
-      svg('path', { d: 'M8.3 12.4l2.5 2.5 4.9-5.1', fill: 'none', stroke: 'var(--helm-surface-raised)', 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
+      svg('circle', { cx: 12, cy: 12, r: 8.5, fill: 'var(--floti-success)', stroke: 'var(--floti-success)', 'stroke-width': 2 }),
+      svg('path', { d: 'M8.3 12.4l2.5 2.5 4.9-5.1', fill: 'none', stroke: 'var(--floti-surface-raised)', 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
     ])
   }
   if (key === 'left') {
     return svg('svg', { viewBox: '0 0 24 24', width: 15, height: 15, 'aria-hidden': 'true' }, [
-      svg('circle', { cx: 12, cy: 12, r: 8.5, fill: 'none', stroke: 'var(--helm-warn)', 'stroke-width': 2, 'stroke-dasharray': '3 2.6' })
+      svg('circle', { cx: 12, cy: 12, r: 8.5, fill: 'none', stroke: 'var(--floti-warn)', 'stroke-width': 2, 'stroke-dasharray': '3 2.6' })
     ])
   }
   return svg('svg', { viewBox: '0 0 24 24', width: 15, height: 15, 'aria-hidden': 'true' }, [
-    svg('circle', { cx: 12, cy: 12, r: 8.5, fill: 'none', stroke: 'var(--helm-accent)', 'stroke-width': 2 }),
-    svg('path', { d: 'M8.5 12h7M12.5 8.8l3.2 3.2-3.2 3.2', fill: 'none', stroke: 'var(--helm-accent)', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
+    svg('circle', { cx: 12, cy: 12, r: 8.5, fill: 'none', stroke: 'var(--floti-accent)', 'stroke-width': 2 }),
+    svg('path', { d: 'M8.5 12h7M12.5 8.8l3.2 3.2-3.2 3.2', fill: 'none', stroke: 'var(--floti-accent)', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })
   ])
 }
 
@@ -558,7 +558,7 @@ async function search(data, editing, state, redraw) {
 
 /**
  * Starts a session on the task in its project's first folder, with the
- * prompt that has it read the task first. Helm shows what it will run and the
+ * prompt that has it read the task first. Floti shows what it will run and the
  * user starts it or not. A project with no folder has nowhere to start one.
  *
  * @param {ItemOverview} data
@@ -572,7 +572,7 @@ function promptBlock(data) {
     el(
       'button',
       {
-        class: 'helm-button it-prompt-button',
+        class: 'floti-button it-prompt-button',
         attrs: { type: 'button', 'data-variant': 'primary', disabled: folder === null },
         on: { click: () => (folder === null ? undefined : void startSession(folder, item)) }
       },
@@ -583,13 +583,13 @@ function promptBlock(data) {
       { class: 'it-hint it-prompt-hint' },
       folder === null
         ? [`${item.project.name} has no folder to start a session in. Add one on the portfolio's workflow page.`]
-        : ['Opens Claude Code in ', el('span', { class: 'it-mono', text: project?.place ?? folder }), ' with ', el('span', { class: 'it-mono it-nowrap', text: prompt }), '. Helm asks first.']
+        : ['Opens Claude Code in ', el('span', { class: 'it-mono', text: project?.place ?? folder }), ' with ', el('span', { class: 'it-mono it-nowrap', text: prompt }), '. Floti asks first.']
     )
   ])
 }
 
 /**
- * Called from the click: Helm takes the request only from one.
+ * Called from the click: Floti takes the request only from one.
  *
  * @param {string} cwd
  * @param {Item} item
@@ -599,7 +599,7 @@ async function startSession(cwd, item) {
     await floti.sessions.start({ cwd, prompt: sessionPrompt(item), name: item.id })
   } catch (error) {
     const busy = /** @type {{ code?: string }} */ (error).code === 'busy'
-    toast(busy ? 'Helm is already asking about a session.' : `Could not start a session: ${error instanceof Error ? error.message : String(error)}`)
+    toast(busy ? 'Floti is already asking about a session.' : `Could not start a session: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

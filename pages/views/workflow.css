@@ -14,7 +14,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  border-bottom: 1px solid var(--helm-border);
+  border-bottom: 1px solid var(--floti-border);
 }
 
 .wf-tile {
@@ -25,9 +25,9 @@
   display: grid;
   place-items: center;
   border-radius: 6px;
-  background: var(--helm-surface-raised);
-  border: 1px solid var(--helm-border-strong);
-  color: var(--helm-fg-muted);
+  background: var(--floti-surface-raised);
+  border: 1px solid var(--floti-border-strong);
+  color: var(--floti-fg-muted);
 }
 
 .wf-title {
@@ -71,7 +71,7 @@
   margin: 3px 0 12px;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .wf-group + .wf-group {
@@ -87,14 +87,14 @@
 
 .wf-meaning {
   font-size: 11px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 /* A list of rows in a box, with the add row at its foot. */
 .wf-list {
-  background: var(--helm-surface);
-  border: 1px solid var(--helm-border);
-  border-radius: var(--helm-radius);
+  background: var(--floti-surface);
+  border: 1px solid var(--floti-border);
+  border-radius: var(--floti-radius);
   overflow: hidden;
 }
 
@@ -105,18 +105,18 @@
   align-items: center;
   gap: 10px;
   padding: 0 6px 0 4px;
-  border-bottom: 1px solid var(--helm-border);
-  background: var(--helm-surface);
+  border-bottom: 1px solid var(--floti-border);
+  background: var(--floti-surface);
   font-size: 13px;
 }
 
-.wf-row > .helm-icon-button {
+.wf-row > .floti-icon-button {
   width: 24px;
   height: 24px;
   margin-left: -6px;
 }
 
-.wf-row > .helm-icon-button + .helm-icon-button {
+.wf-row > .floti-icon-button + .floti-icon-button {
   margin-left: -8px;
 }
 
@@ -131,10 +131,10 @@
   display: inline-flex;
   align-items: center;
   padding: 0 6px;
-  border: 1px solid var(--helm-border-strong);
+  border: 1px solid var(--floti-border-strong);
   border-radius: 8px;
   font-size: 10.5px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   white-space: nowrap;
 }
 
@@ -142,7 +142,7 @@
   flex-shrink: 0;
   margin-right: 4px;
   font-size: 11px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   font-variant-numeric: tabular-nums;
 }
 
@@ -176,7 +176,7 @@
 }
 
 .wf-open:hover {
-  color: var(--helm-accent-text);
+  color: var(--floti-accent-text);
   text-decoration: underline;
 }
 
@@ -186,7 +186,7 @@
   position: relative;
   top: 1px;
   font-size: 11px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .wf-place-none {
@@ -202,7 +202,7 @@
   padding: 0 10px;
   border: 0;
   background: transparent;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   font: inherit;
   font-size: 12px;
   text-align: left;
@@ -210,15 +210,15 @@
 }
 
 .wf-add:hover {
-  background: var(--helm-hover);
-  color: var(--helm-fg);
+  background: var(--floti-hover);
+  color: var(--floti-fg);
 }
 
 .wf-empty {
   margin: 0;
   padding: 10px 10px 2px;
   font-size: 12px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 /* An editor, in a row's place */
@@ -228,9 +228,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border-bottom: 1px solid var(--helm-border);
-  background: var(--helm-surface);
-  box-shadow: inset 2px 0 0 var(--helm-accent);
+  border-bottom: 1px solid var(--floti-border);
+  background: var(--floti-surface);
+  box-shadow: inset 2px 0 0 var(--floti-accent);
 }
 
 .wf-editor-line {
@@ -263,7 +263,7 @@
   flex-shrink: 0;
   padding-top: 5px;
   font-size: 11.5px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .wf-choice-set {
@@ -280,18 +280,18 @@
   display: grid;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: var(--helm-radius-well);
+  border-radius: var(--floti-radius-well);
   background: transparent;
   cursor: pointer;
 }
 
 .wf-choice:hover {
-  background: var(--helm-hover);
+  background: var(--floti-hover);
 }
 
 .wf-choice[aria-pressed='true'] {
-  border-color: var(--helm-accent);
-  background: var(--helm-accent-soft);
+  border-color: var(--floti-accent);
+  background: var(--floti-accent-soft);
 }
 
 .wf-choice .work-swatch {
@@ -309,11 +309,11 @@
 
 .wf-check input {
   margin: 0;
-  accent-color: var(--helm-accent);
+  accent-color: var(--floti-accent);
 }
 
 .wf-check input:disabled + span {
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .wf-folder-list {
@@ -330,9 +330,9 @@
   align-items: center;
   gap: 6px;
   padding: 0 0 0 8px;
-  border-radius: var(--helm-radius);
-  background: var(--helm-surface-raised);
-  color: var(--helm-fg-muted);
+  border-radius: var(--floti-radius);
+  background: var(--floti-surface-raised);
+  color: var(--floti-fg-muted);
   font-size: 11px;
 }
 
@@ -342,10 +342,10 @@
 
 .wf-folder > .work-ellip {
   flex: 1;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
-.wf-folder .helm-icon-button {
+.wf-folder .floti-icon-button {
   width: 24px;
   height: 24px;
 }
@@ -366,7 +366,7 @@
 
 .wf-label {
   font-size: 12px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .wf-label-top {
@@ -396,7 +396,7 @@
 
 .wf .wf-key-line .work-mono {
   font-size: 11px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .wf .wf-description {
@@ -414,7 +414,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  border-top: 1px solid var(--helm-border);
+  border-top: 1px solid var(--floti-border);
 }
 
 .wf-danger .it-hint {

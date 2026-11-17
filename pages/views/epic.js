@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * An epic: its progress in each project, its tasks in a box per project, the
  * order they can be done in, and its references and links. The v2 board's epic page; the

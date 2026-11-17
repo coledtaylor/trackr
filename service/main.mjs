@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -8,7 +7,7 @@ import { WorkStore } from './store.mjs'
 
 /**
  * The plugin's service: owns the Trackr database and answers the plugin's
- * pages over loopback. Helm starts it, gives it a port and a token, and stops
+ * pages over loopback. Floti starts it, gives it a port and a token, and stops
  * it with the plugin.
  *
  * - `GET /health` answers `{ ok, schema }`.
@@ -19,26 +18,20 @@ import { WorkStore } from './store.mjs'
  *
  * A refused call answers `{ error: { code, message } }` with 400, 404 or 409.
  *
- * Every request without Helm's token gets 401 before anything else.
+ * Every request without Floti's token gets 401 before anything else.
  */
 
 const MAX_BODY = 16 * 1024 * 1024
 
 /**
- * Where the database lives unless `HELM_TRACKR_DB` says otherwise: beside
- * Floti's config, outside the plugin folder, so it survives a reinstall and the
- * installed and dev Floti share it. That is `~/.config/floti`, except while
- * Floti still reads Helm's `~/.config/helm` (it has not moved that folder yet)
- * and holds no database of its own: there the database is in Helm's folder and
- * moves with it.
+ * Where the database lives unless `TRACKR_DB` says otherwise: in Floti's
+ * config folder `~/.config/floti`, outside the plugin folder, so it survives a
+ * reinstall and the installed and dev Floti share it.
  *
  * @param {string} [home]
  */
 export function defaultDatabasePath(home = homedir()) {
-  const config = join(home, '.config')
-  const floti = join(config, 'floti', 'data', 'trackr', 'trackr.db')
-  if (existsSync(floti) || !existsSync(join(config, 'helm'))) return floti
-  return join(config, 'helm', 'data', 'trackr', 'trackr.db')
+  return join(home, '.config', 'floti', 'data', 'trackr', 'trackr.db')
 }
 
 /**
@@ -60,7 +53,7 @@ export function createWorkServer({ store, token }) {
       response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }).end(json)
     }
 
-    if (request.headers['helm-service-token'] !== token) return reply(401)
+    if (request.headers['floti-service-token'] !== token) return reply(401)
 
     const url = new URL(request.url ?? '/', 'http://service')
     if (url.pathname === '/health') {
@@ -106,13 +99,13 @@ export function createWorkServer({ store, token }) {
 }
 
 function main() {
-  const port = Number(process.env.HELM_SERVICE_PORT)
-  const token = process.env.HELM_SERVICE_TOKEN ?? ''
+  const port = Number(process.env.FLOTI_SERVICE_PORT)
+  const token = process.env.FLOTI_SERVICE_TOKEN ?? ''
   if (!Number.isInteger(port) || port <= 0 || token === '') {
-    console.error('trackr: HELM_SERVICE_PORT and HELM_SERVICE_TOKEN are required. Helm sets them.')
+    console.error('trackr: FLOTI_SERVICE_PORT and FLOTI_SERVICE_TOKEN are required. Floti sets them.')
     process.exit(1)
   }
-  const file = process.env.HELM_TRACKR_DB || defaultDatabasePath()
+  const file = process.env.TRACKR_DB || defaultDatabasePath()
   const store = new WorkStore(file)
   const server = createWorkServer({ store, token })
   server.listen(port, '127.0.0.1', () => console.log(`trackr: serving ${file} (schema ${store.schemaVersion})`))

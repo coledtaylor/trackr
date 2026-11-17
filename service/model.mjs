@@ -5,7 +5,7 @@
  */
 
 /**
- * What a status means, whatever it is called. Helm and agents read the group,
+ * What a status means, whatever it is called. Floti and agents read the group,
  * never the name, so a custom status like "Awaiting launch" still counts as
  * done.
  *
@@ -162,7 +162,7 @@ export const DEFAULT_PRIORITIES = [
   { name: 'Low' }
 ]
 
-/** A portfolio key: what IDs start with. TC, HELM, WB. */
+/** A portfolio key: what IDs start with. TC, FLOTI, WB. */
 export const PORTFOLIO_KEY = /^[A-Z][A-Z0-9]{0,9}$/
 
 /** An item ID as people and agents write it: TC-123. */

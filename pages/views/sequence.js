@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A sequence: the stages a piece of work is done in, first to last, as a
  * grid. Stages run across, each with its goal and how far along it is, the
@@ -280,7 +280,7 @@ function stageEditor(editing, shown, stage, classes) {
     if (ran) close()
   }
   return el('div', { class: `${classes} is-editing`, attrs: { 'data-stage': stage.n, 'data-stage-uid': stage.uid } }, [
-    lineField(editing, `${key}.title`, { value: stage.title, label: `Stage ${stage.n} title`, placeholder: 'What this stage is', className: 'helm-input sq-input', onEnter: () => void save(), onEscape: close }),
+    lineField(editing, `${key}.title`, { value: stage.title, label: `Stage ${stage.n} title`, placeholder: 'What this stage is', className: 'floti-input sq-input', onEnter: () => void save(), onEscape: close }),
     textArea(editing, `${key}.goal`, { value: stage.goal, label: `Stage ${stage.n} goal`, placeholder: 'Goal: what is true when it is done', rows: 2, onSave: () => void save(), onCancel: close }),
     el('div', { class: 'sq-stage-tools' }, [
       iconButton('Move it earlier', ICONS.chevronLeft, () => move(stage.n - 1), stage.n === 1 ? 'is-off' : ''),
@@ -323,7 +323,7 @@ function addStageForm(editing, shown) {
   }
   return el('div', { class: 'sq-stage is-editing is-new' }, [
     el('div', { class: 'sq-stage-line' }, [stageMark('empty', shown.plan.stages.length + 1), el('span', { class: 'sq-stage-new', text: 'New stage' })]),
-    lineField(editing, 'stage.new.title', { label: 'New stage title', placeholder: 'What this stage is · Enter adds', className: 'helm-input sq-input', onEnter: () => void save(), onEscape: close }),
+    lineField(editing, 'stage.new.title', { label: 'New stage title', placeholder: 'What this stage is · Enter adds', className: 'floti-input sq-input', onEnter: () => void save(), onEscape: close }),
     textArea(editing, 'stage.new.goal', { value: '', label: 'New stage goal', placeholder: 'Goal: what is true when it is done', rows: 2, onSave: () => void save(), onCancel: close }),
     el('div', { class: 'sq-stage-tools' }, [el('span', { class: 'it-grow' }), button('Add', null, () => void save(), 'primary'), button('Close', null, close, 'ghost')])
   ])
@@ -633,7 +633,7 @@ export function sequencePrompt(editing) {
  * @param {import('../shared/types.js').StageState} state
  */
 export function stageColour(state) {
-  return state === 'done' ? 'var(--helm-success)' : state === 'active' ? 'var(--helm-accent)' : 'var(--helm-border-strong)'
+  return state === 'done' ? 'var(--floti-success)' : state === 'active' ? 'var(--floti-accent)' : 'var(--floti-border-strong)'
 }
 
 export { stageMark, bar as stageBar }

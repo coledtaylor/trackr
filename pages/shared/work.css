@@ -1,6 +1,6 @@
 /*
- * What the plugin's pages share, on top of Helm's primitives. Colours are
- * Helm's theme tokens, except the categorical project colours, which Helm does
+ * What the plugin's pages share, on top of Floti's primitives. Colours are
+ * Floti's theme tokens, except the categorical project colours, which Floti does
  * not have yet: the v2 board's five, a shade per theme kind.
  */
 
@@ -37,15 +37,15 @@ button {
 
 .work-id {
   flex-shrink: 0;
-  font-family: var(--helm-font-mono);
+  font-family: var(--floti-font-mono);
   font-size: 10.5px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .work-kind {
   flex-shrink: 0;
   font-size: 10.5px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .work-ellip {
@@ -64,7 +64,7 @@ button {
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .work-tile {
@@ -88,7 +88,7 @@ button {
   gap: 7px;
   padding: 0 8px;
   border: 0;
-  border-radius: var(--helm-radius);
+  border-radius: var(--floti-radius);
   background: transparent;
   font-size: 12.5px;
   text-align: left;
@@ -96,11 +96,11 @@ button {
 }
 
 .work-item-row:hover {
-  background: var(--helm-hover);
+  background: var(--floti-hover);
 }
 
 .work-item-row[aria-current='true'] {
-  background: var(--helm-active);
+  background: var(--floti-active);
 }
 
 .work-toast {
@@ -118,9 +118,9 @@ button {
   gap: 8px;
   padding: 7px 12px;
   line-height: 1.4;
-  background: var(--helm-surface-raised);
-  border: 1px solid var(--helm-border-strong);
-  border-radius: var(--helm-radius-well);
+  background: var(--floti-surface-raised);
+  border: 1px solid var(--floti-border-strong);
+  border-radius: var(--floti-radius-well);
   font-size: 12px;
 }
 
@@ -137,7 +137,7 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--helm-accent);
+  outline: 2px solid var(--floti-accent);
   outline-offset: -2px;
 }
 
@@ -146,7 +146,7 @@ button {
 }
 
 .work-mono {
-  font-family: var(--helm-font-mono);
+  font-family: var(--floti-font-mono);
 }
 
 .work-chip {
@@ -157,9 +157,9 @@ button {
   align-items: center;
   gap: 4px;
   padding: 0 6px;
-  border-radius: var(--helm-radius);
-  background: var(--helm-surface-raised);
-  color: var(--helm-fg-muted);
+  border-radius: var(--floti-radius);
+  background: var(--floti-surface-raised);
+  color: var(--floti-fg-muted);
   font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
@@ -171,15 +171,15 @@ button {
 
 .work-chip-id {
   flex-shrink: 0;
-  font-family: var(--helm-font-mono);
+  font-family: var(--floti-font-mono);
   font-size: 10.5px;
 }
 
 .work-chip-session {
   flex-shrink: 0;
   max-width: 180px;
-  background: var(--helm-accent-soft);
-  color: var(--helm-accent-text);
+  background: var(--floti-accent-soft);
+  color: var(--floti-accent-text);
 }
 
 .work-session-tile {
@@ -189,15 +189,15 @@ button {
   display: inline-grid;
   place-items: center;
   border-radius: 5px;
-  background: var(--helm-accent-soft);
-  color: var(--helm-accent-text);
+  background: var(--floti-accent-soft);
+  color: var(--floti-accent-text);
 }
 
 /* The session holding a task has ended: it is still named, not shown as live. */
 .work-chip-session.is-stopped,
 .work-session-tile.is-stopped {
-  background: var(--helm-surface-raised);
-  color: var(--helm-fg-subtle);
+  background: var(--floti-surface-raised);
+  color: var(--floti-fg-subtle);
 }
 
 .work-waits {
@@ -206,7 +206,7 @@ button {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--helm-warn);
+  color: var(--floti-warn);
 }
 
 .work-priority {
@@ -235,10 +235,10 @@ button {
   padding: 0;
   display: flex;
   flex-direction: column;
-  background: var(--helm-surface);
-  color: var(--helm-fg);
-  border: 1px solid var(--helm-border-strong);
-  border-radius: var(--helm-radius-well);
+  background: var(--floti-surface);
+  color: var(--floti-fg);
+  border: 1px solid var(--floti-border-strong);
+  border-radius: var(--floti-radius-well);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
   font-size: 13px;
 }
@@ -267,7 +267,7 @@ button {
   align-items: center;
   gap: 10px;
   padding: 0 8px 0 16px;
-  border-bottom: 1px solid var(--helm-border);
+  border-bottom: 1px solid var(--floti-border);
 }
 
 .work-dialog-tile {
@@ -278,15 +278,15 @@ button {
   display: grid;
   place-items: center;
   border-radius: 6px;
-  background: var(--helm-surface-raised);
-  border: 1px solid var(--helm-border-strong);
-  color: var(--helm-fg-muted);
+  background: var(--floti-surface-raised);
+  border: 1px solid var(--floti-border-strong);
+  color: var(--floti-fg-muted);
 }
 
 .work-dialog-tile-danger {
-  background: color-mix(in srgb, var(--helm-danger) 10%, transparent);
-  border-color: color-mix(in srgb, var(--helm-danger) 40%, transparent);
-  color: var(--helm-danger);
+  background: color-mix(in srgb, var(--floti-danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--floti-danger) 40%, transparent);
+  color: var(--floti-danger);
 }
 
 .work-dialog-title {
@@ -297,7 +297,7 @@ button {
 .work-dialog-meta {
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .work-dialog-body {
@@ -313,13 +313,13 @@ button {
   margin: 0;
   font-size: 12.5px;
   line-height: 1.55;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   overflow-wrap: anywhere;
 }
 
 .work-dialog-text strong {
   font-weight: 500;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 .work-dialog-field {
@@ -331,12 +331,12 @@ button {
 
 .work-dialog-field > span {
   font-size: 11.5px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .work-dialog-field .work-mono {
   font-size: 11px;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 .work-dialog-field :is(input, select) {
@@ -369,7 +369,7 @@ button {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--helm-danger);
+  color: var(--floti-danger);
 }
 
 .work-dialog-error[hidden] {
@@ -382,13 +382,13 @@ button {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid var(--helm-border);
+  border-top: 1px solid var(--floti-border);
 }
 
 .work-dialog-hint {
-  font-family: var(--helm-font-mono);
+  font-family: var(--floti-font-mono);
   font-size: 11px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 /* The new task form, in the panel and in a tab's dialog */
@@ -398,9 +398,9 @@ button {
   display: flex;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--helm-border);
-  border-radius: var(--helm-radius-well);
-  background: var(--helm-surface-sunken);
+  border: 1px solid var(--floti-border);
+  border-radius: var(--floti-radius-well);
+  background: var(--floti-surface-sunken);
 }
 
 /* As the project page's List and Board. */
@@ -410,18 +410,18 @@ button {
   border: 0;
   border-radius: 3px;
   background: transparent;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   font-size: 12px;
   cursor: pointer;
 }
 
 .work-kind:hover {
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 .work-kind[aria-pressed='true'] {
-  background: var(--helm-active);
-  color: var(--helm-fg);
+  background: var(--floti-active);
+  color: var(--floti-fg);
 }
 
 .work-dialog-field select:disabled {
@@ -449,7 +449,7 @@ button {
   margin: 0;
   font-size: 11.5px;
   line-height: 1.5;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 /* A row's drag handle (sortable.js) */
@@ -462,16 +462,16 @@ button {
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: var(--helm-radius);
+  border-radius: var(--floti-radius);
   background: transparent;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   cursor: grab;
   touch-action: none;
 }
 
 .work-grip:hover:not(:disabled) {
-  color: var(--helm-fg);
-  background: var(--helm-hover);
+  color: var(--floti-fg);
+  background: var(--floti-hover);
 }
 
 .work-grip:disabled {
@@ -487,7 +487,7 @@ button {
   position: relative;
   z-index: 1;
   transition: none;
-  background: var(--helm-surface-raised);
+  background: var(--floti-surface-raised);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
 

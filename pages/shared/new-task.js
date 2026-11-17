@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * The new task form: title, project, epic, status, priority and description.
  * A toggle makes it an epic instead, which has a home project and goes in an
@@ -87,14 +87,14 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
 
   const title = /** @type {HTMLInputElement} */ (
     el('input', {
-      class: 'helm-input work-form-title',
+      class: 'floti-input work-form-title',
       attrs: { type: 'text', 'aria-label': 'Title', placeholder: 'What needs doing', maxlength: 300, autocomplete: 'off' }
     })
   )
   const project = /** @type {HTMLSelectElement} */ (
     el(
       'select',
-      { class: 'helm-select' },
+      { class: 'floti-select' },
       [
         selectFace(),
         ...portfolios
@@ -111,12 +111,12 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
   )
   project.value = String(projectUid)
   /** The epic a task goes in, or the initiative an epic goes in. */
-  const parent = /** @type {HTMLSelectElement} */ (el('select', { class: 'helm-select' }))
-  const status = /** @type {HTMLSelectElement} */ (el('select', { class: 'helm-select' }))
-  const priority = /** @type {HTMLSelectElement} */ (el('select', { class: 'helm-select' }))
+  const parent = /** @type {HTMLSelectElement} */ (el('select', { class: 'floti-select' }))
+  const status = /** @type {HTMLSelectElement} */ (el('select', { class: 'floti-select' }))
+  const priority = /** @type {HTMLSelectElement} */ (el('select', { class: 'floti-select' }))
   const description = /** @type {HTMLTextAreaElement} */ (
     el('textarea', {
-      class: 'helm-textarea work-form-description',
+      class: 'floti-textarea work-form-description',
       attrs: { 'aria-label': 'Description', placeholder: 'Description: context, the fix direction, anything the next session needs', maxlength: 100000 }
     })
   )
@@ -163,7 +163,7 @@ export function taskForm({ portfolios, projectUid, choices, hint, onCreated, onK
   }
   const error = el('p', { class: 'work-dialog-error', attrs: { role: 'alert', hidden: true } })
   const create = /** @type {HTMLButtonElement} */ (
-    el('button', { class: 'helm-button', text: 'Create task', attrs: { type: 'button', 'data-variant': 'primary' } })
+    el('button', { class: 'floti-button', text: 'Create task', attrs: { type: 'button', 'data-variant': 'primary' } })
   )
 
   /**
@@ -324,7 +324,7 @@ export async function openTaskDialog(portfolioUid, projectUid) {
         if (heading) heading.textContent = `New ${kind}`
       }
     })
-    const cancel = el('button', { class: 'helm-button', text: 'Cancel', attrs: { type: 'button' } })
+    const cancel = el('button', { class: 'floti-button', text: 'Cancel', attrs: { type: 'button' } })
     dialog = openDialog({
       label: 'New task',
       meta: form.next,

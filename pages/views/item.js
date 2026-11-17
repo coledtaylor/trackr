@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * An initiative, an epic or a task: reads what the view needs and draws
  * `initiative.js`, `epic.js` or `task.js`. Drawing again keeps an open
@@ -62,7 +62,7 @@ export function createItemView(root, uid, host) {
     fill(root, [
       el('div', { class: 'state', attrs: { role: 'status' } }, [
         el('p', { class: 'quiet', text: `${item.id} ${item.title} was deleted.` }),
-        el('button', { class: 'helm-button', text: `Open ${item.project.name}`, attrs: { type: 'button' }, on: opens((how) => openProject(item.project, how)) })
+        el('button', { class: 'floti-button', text: `Open ${item.project.name}`, attrs: { type: 'button' }, on: opens((how) => openProject(item.project, how)) })
       ])
     ])
     floti.surface.setTitle(`${item.id} deleted`)

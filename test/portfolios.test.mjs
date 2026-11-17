@@ -34,7 +34,7 @@ describe('portfolios', () => {
     )
   })
 
-  test('keys are unique and shaped like TC or HELM', () => {
+  test('keys are unique and shaped like TC or FLOTI', () => {
     const store = memoryStore()
     store.createPortfolio({ key: 'TC', name: 'TideCast' })
     assert.throws(() => store.createPortfolio({ key: 'tc', name: 'Again' }), { code: 'conflict' })
@@ -136,13 +136,13 @@ describe('portfolios', () => {
   test('listPortfolios has each portfolio with its projects and counts', () => {
     const store = memoryStore()
     seedTideCast(store)
-    store.createPortfolio({ key: 'HELM', name: 'Helm' })
+    store.createPortfolio({ key: 'FLOTI', name: 'Floti' })
     store.createItem({ project: 'Desktop', title: 'Open' })
     store.createItem({ project: 'Desktop', title: 'Going', status: 'In progress' })
     store.createItem({ project: 'Desktop', title: 'Finished', status: 'Done' })
     store.createItem({ kind: 'epic', project: 'Desktop', title: 'Epics are not counted' })
-    const [helm, tc] = store.listPortfolios()
-    assert.equal(helm.key, 'HELM')
+    const [floti, tc] = store.listPortfolios()
+    assert.equal(floti.key, 'FLOTI')
     assert.deepEqual(tc.projects.map((p) => p.name), ['Desktop', 'Reporting API'])
     assert.deepEqual(tc.projects[0].counts, { open: 2, active: 1, done: 1, closed: 0 })
   })
@@ -180,7 +180,7 @@ describe('the database file', () => {
     }
   })
 
-  test('two stores on one file, as the installed and dev Helm would be, never hand out one number twice', () => {
+  test('two stores on one file, as the installed and dev Floti would be, never hand out one number twice', () => {
     const { dir, remove } = tempDir()
     try {
       const file = join(dir, 'work.db')

@@ -53,7 +53,7 @@ describe('the service process', () => {
    * @param {string} [withToken]
    */
   const call = (path, init = {}, withToken = token) =>
-    fetch(`http://127.0.0.1:${port}${path}`, { ...init, headers: { ...init.headers, 'helm-service-token': withToken } })
+    fetch(`http://127.0.0.1:${port}${path}`, { ...init, headers: { ...init.headers, 'floti-service-token': withToken } })
 
   /**
    * @param {string} method

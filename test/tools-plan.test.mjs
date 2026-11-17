@@ -35,7 +35,7 @@ const PLAN = {
       ref: 'floti',
       kind: 'initiative',
       title: 'Floti 3.0',
-      description: 'Helm becomes Floti.',
+      description: 'One name for the app, its installer and its plugins.',
       references: [{ target: 'https://claude.ai/artifact/floti-design', use: 'Read before any Floti work', key: true }],
       stages: [
         { title: 'Host', goal: 'The Rust host serves every session', items: ['host', 'web'] },
@@ -80,7 +80,7 @@ describe('initiatives and sequences through the tools', () => {
         'initiative · Backlog · Normal · Floti/App (~/code/floti) · 2 epics · 1 of 5 tasks done · spans App, Website',
         '',
         '## Description',
-        'Helm becomes Floti.',
+        'One name for the app, its installer and its plugins.',
         '',
         '## References',
         'artifact https://claude.ai/artifact/floti-design · Read before any Floti work · key',

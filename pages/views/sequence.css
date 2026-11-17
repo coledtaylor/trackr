@@ -7,7 +7,7 @@
   --sq-lane: 212px;
   --sq-stage: 228px;
   --sq-add: 40px;
-  --sq-now: color-mix(in srgb, var(--helm-accent) 6%, transparent);
+  --sq-now: color-mix(in srgb, var(--floti-accent) 6%, transparent);
   flex-shrink: 0;
   padding: 16px 24px 4px;
   display: flex;
@@ -16,7 +16,7 @@
 }
 
 .sq .sq-mono {
-  font-family: var(--helm-font-mono);
+  font-family: var(--floti-font-mono);
   font-size: 10.5px;
 }
 
@@ -27,7 +27,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .sq-head > svg {
@@ -42,19 +42,19 @@
   gap: 6px;
   margin-left: 4px;
   font-size: 11.5px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .sq-dot {
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .sq-owner {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
   font: inherit;
   cursor: pointer;
 }
@@ -69,7 +69,7 @@
   align-items: center;
   gap: 4px 14px;
   font-size: 11px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .sq-legend > span {
@@ -82,8 +82,8 @@
 
 .sq-scroll {
   overflow-x: auto;
-  border: 1px solid var(--helm-border);
-  border-radius: var(--helm-radius);
+  border: 1px solid var(--floti-border);
+  border-radius: var(--floti-radius);
 }
 
 .sq-grid {
@@ -94,15 +94,15 @@
 .sq-grid > * {
   box-sizing: border-box;
   min-width: 0;
-  border-right: 1px solid var(--helm-border);
-  border-bottom: 1px solid var(--helm-border);
+  border-right: 1px solid var(--floti-border);
+  border-bottom: 1px solid var(--floti-border);
 }
 
 /* The corner, the stage heads and the add column make the first row. */
 .sq-corner,
 .sq-stage,
 .sq-add {
-  background: var(--helm-surface-raised);
+  background: var(--floti-surface-raised);
 }
 
 .sq-corner {
@@ -123,7 +123,7 @@
 }
 
 .sq-stage.is-current {
-  background: color-mix(in srgb, var(--helm-accent) 9%, var(--helm-surface-raised));
+  background: color-mix(in srgb, var(--floti-accent) 9%, var(--floti-surface-raised));
 }
 
 .sq-stage.is-current::before {
@@ -133,7 +133,7 @@
   right: -1px;
   top: -1px;
   height: 2px;
-  background: var(--helm-accent);
+  background: var(--floti-accent);
 }
 
 .sq-stage-line {
@@ -150,8 +150,8 @@
   display: inline-grid;
   place-items: center;
   border-radius: 50%;
-  border: 1.5px solid var(--helm-border-strong);
-  color: var(--helm-fg-muted);
+  border: 1.5px solid var(--floti-border-strong);
+  color: var(--floti-fg-muted);
   font-size: 10.5px;
   font-weight: 600;
   line-height: 1;
@@ -159,14 +159,14 @@
 }
 
 .sq-mark.is-done {
-  border-color: var(--helm-success);
-  background: var(--helm-success);
-  color: var(--helm-surface);
+  border-color: var(--floti-success);
+  background: var(--floti-success);
+  color: var(--floti-surface);
 }
 
 .sq-mark.is-active {
-  border-color: var(--helm-accent);
-  color: var(--helm-accent-text);
+  border-color: var(--floti-accent);
+  color: var(--floti-accent-text);
 }
 
 .sq-mark.is-empty {
@@ -179,9 +179,9 @@
   padding: 1px 4px;
   margin-left: -4px;
   border: 0;
-  border-radius: var(--helm-radius);
+  border-radius: var(--floti-radius);
   background: transparent;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
@@ -193,7 +193,7 @@ button.sq-stage-title {
 }
 
 button.sq-stage-title:hover {
-  background: var(--helm-hover);
+  background: var(--floti-hover);
 }
 
 .sq-stage-name {
@@ -212,8 +212,8 @@ button.sq-stage-title:hover {
   margin-left: auto;
   padding: 0 6px;
   border-radius: 8px;
-  background: var(--helm-accent-soft);
-  color: var(--helm-accent-text);
+  background: var(--floti-accent-soft);
+  color: var(--floti-accent-text);
   font-size: 10.5px;
   font-weight: 500;
 }
@@ -223,7 +223,7 @@ button.sq-stage-title:hover {
   min-height: 34px;
   font-size: 11.5px;
   line-height: 17px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -231,7 +231,7 @@ button.sq-stage-title:hover {
 }
 
 .sq-goal.is-none {
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .sq-stage-progress,
@@ -248,27 +248,27 @@ button.sq-stage-title:hover {
   min-width: 24px;
   display: flex;
   border-radius: 2px;
-  background: var(--helm-border-strong);
+  background: var(--floti-border-strong);
   overflow: hidden;
 }
 
 .sq-bar-done {
-  background: var(--helm-accent);
+  background: var(--floti-accent);
 }
 
 .sq-bar-done.is-complete {
-  background: var(--helm-success);
+  background: var(--floti-success);
 }
 
 .sq-bar-active {
-  background: color-mix(in srgb, var(--helm-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--floti-accent) 45%, transparent);
 }
 
 .sq .sq-count {
   flex-shrink: 0;
   min-width: 30px;
   font-size: 11px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -278,12 +278,12 @@ button.sq-stage-title:hover {
 .sq-stage.is-editing {
   gap: 6px;
   padding: 8px;
-  background: var(--helm-surface-raised);
+  background: var(--floti-surface-raised);
 }
 
 .sq-stage-new {
   font-size: 12px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .sq-input {
@@ -318,7 +318,7 @@ button.sq-stage-title:hover {
 }
 
 .sq-delete:hover {
-  color: var(--helm-danger);
+  color: var(--floti-danger);
 }
 
 .sq-add {
@@ -327,13 +327,13 @@ button.sq-stage-title:hover {
   padding: 0;
   border-top: 0;
   border-left: 0;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   cursor: pointer;
 }
 
 .sq-add:hover {
-  background: var(--helm-hover);
-  color: var(--helm-fg);
+  background: var(--floti-hover);
+  color: var(--floti-fg);
 }
 
 /* The lanes */
@@ -348,8 +348,8 @@ button.sq-stage-title:hover {
   padding: 10px 12px;
   border-top: 0;
   border-left: 0;
-  background: var(--helm-surface-raised);
-  color: var(--helm-fg);
+  background: var(--floti-surface-raised);
+  color: var(--floti-fg);
   font: inherit;
   text-align: left;
 }
@@ -359,7 +359,7 @@ button.sq-lane-head {
 }
 
 button.sq-lane-head:hover {
-  background: color-mix(in srgb, var(--helm-fg) 4%, var(--helm-surface-raised));
+  background: color-mix(in srgb, var(--floti-fg) 4%, var(--floti-surface-raised));
 }
 
 .sq-lane-head.sq-lane-none {
@@ -371,14 +371,14 @@ button.sq-lane-head:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .sq-lane-title {
   font-size: 12.5px;
   font-weight: 500;
   line-height: 17px;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -430,18 +430,18 @@ button.sq-lane-head:hover {
   flex-direction: column;
   gap: 2px;
   padding: 6px 8px 7px;
-  border: 1px solid var(--helm-border);
-  border-radius: var(--helm-radius);
-  background: var(--helm-surface-raised);
-  color: var(--helm-fg);
+  border: 1px solid var(--floti-border);
+  border-radius: var(--floti-radius);
+  background: var(--floti-surface-raised);
+  color: var(--floti-fg);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .sq-item:hover {
-  border-color: var(--helm-border-strong);
-  background: color-mix(in srgb, var(--helm-fg) 4%, var(--helm-surface-raised));
+  border-color: var(--floti-border-strong);
+  background: color-mix(in srgb, var(--floti-fg) 4%, var(--floti-surface-raised));
 }
 
 .sq-item-top {
@@ -450,7 +450,7 @@ button.sq-lane-head:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .sq-item-top > .sq-mono,
@@ -462,7 +462,7 @@ button.sq-lane-head:hover {
 .sq-item-title {
   font-size: 12px;
   line-height: 16px;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -471,16 +471,16 @@ button.sq-lane-head:hover {
 }
 
 .sq-item.is-finished .sq-item-title {
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .sq-item.is-conflict {
-  border-color: color-mix(in srgb, var(--helm-warn) 45%, transparent);
+  border-color: color-mix(in srgb, var(--floti-warn) 45%, transparent);
 }
 
 .sq-warn-mark {
   display: flex;
-  color: var(--helm-warn);
+  color: var(--floti-warn);
 }
 
 .sq-item .work-session-tile {
@@ -510,17 +510,17 @@ button.sq-lane-head:hover {
   flex-direction: column;
   gap: 6px;
   padding: 7px 8px 8px;
-  border: 1px solid color-mix(in srgb, var(--helm-accent) 35%, transparent);
-  border-radius: var(--helm-radius);
-  background: var(--helm-accent-soft);
-  color: var(--helm-accent-text);
+  border: 1px solid color-mix(in srgb, var(--floti-accent) 35%, transparent);
+  border-radius: var(--floti-radius);
+  background: var(--floti-accent-soft);
+  color: var(--floti-accent-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .sq-epic:hover {
-  background: var(--helm-accent-soft-hover);
+  background: var(--floti-accent-soft-hover);
 }
 
 .sq-epic-top {
@@ -537,7 +537,7 @@ button.sq-lane-head:hover {
 }
 
 .sq-epic .sq-count {
-  color: var(--helm-accent-text);
+  color: var(--floti-accent-text);
 }
 
 /* Drag and drop */
@@ -548,16 +548,16 @@ button.sq-lane-head:hover {
 
 .sq-stage.is-drop,
 .sq-cell.is-drop {
-  background: color-mix(in srgb, var(--helm-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--floti-accent) 12%, transparent);
 }
 
 .sq-stage.is-drop {
-  background: color-mix(in srgb, var(--helm-accent) 14%, var(--helm-surface-raised));
+  background: color-mix(in srgb, var(--floti-accent) 14%, var(--floti-surface-raised));
 }
 
 .sq-item.is-drop-before,
 .sq-epic.is-drop-before {
-  box-shadow: 0 -3px 0 -1px var(--helm-accent);
+  box-shadow: 0 -3px 0 -1px var(--floti-accent);
 }
 
 .sq-cell.is-drop-end::after {
@@ -565,12 +565,12 @@ button.sq-lane-head:hover {
   height: 2px;
   margin: 0 2px;
   border-radius: 1px;
-  background: var(--helm-accent);
+  background: var(--floti-accent);
 }
 
 .sq-tray.is-drop {
-  border-color: var(--helm-accent);
-  background: color-mix(in srgb, var(--helm-accent) 8%, transparent);
+  border-color: var(--floti-accent);
+  background: color-mix(in srgb, var(--floti-accent) 8%, transparent);
 }
 
 /* Under the grid */
@@ -600,15 +600,15 @@ button.sq-lane-head:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px dashed var(--helm-border-strong);
-  border-radius: var(--helm-radius);
+  border: 1px dashed var(--floti-border-strong);
+  border-radius: var(--floti-radius);
 }
 
 .sq-tray-warn {
   flex: 0 1 420px;
   border-style: solid;
-  border-color: color-mix(in srgb, var(--helm-warn) 35%, transparent);
-  background: color-mix(in srgb, var(--helm-warn) 5%, transparent);
+  border-color: color-mix(in srgb, var(--floti-warn) 35%, transparent);
+  background: color-mix(in srgb, var(--floti-warn) 5%, transparent);
 }
 
 .sq-tray-head {
@@ -626,12 +626,12 @@ button.sq-lane-head:hover {
   margin: 0;
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 .sq-tray-count {
   font-size: 11.5px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -649,14 +649,14 @@ button.sq-lane-head:hover {
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
 }
 
 .sq-link {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--helm-fg);
+  color: var(--floti-fg);
   cursor: pointer;
 }
 
@@ -672,8 +672,8 @@ button.sq-lane-head:hover {
   align-items: center;
   gap: 12px 16px;
   padding: 14px 16px;
-  border: 1px dashed var(--helm-border-strong);
-  border-radius: var(--helm-radius);
+  border: 1px dashed var(--floti-border-strong);
+  border-radius: var(--floti-radius);
 }
 
 .sq-empty.is-adding {
@@ -683,15 +683,15 @@ button.sq-lane-head:hover {
 
 .sq-empty.is-adding .sq-stage {
   width: 320px;
-  border: 1px solid var(--helm-border);
-  border-radius: var(--helm-radius);
+  border: 1px solid var(--floti-border);
+  border-radius: var(--floti-radius);
 }
 
 .sq-empty-text {
   flex: 1 1 420px;
   margin: 0;
   font-size: 12.5px;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   max-width: 80ch;
 }
 

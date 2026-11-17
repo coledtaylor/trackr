@@ -14,24 +14,24 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--helm-fg-muted);
+  color: var(--floti-fg-muted);
   cursor: pointer;
 }
 
 .crumb:hover {
-  color: var(--helm-fg);
+  color: var(--floti-fg);
 }
 
 .counts {
   font-size: 11.5px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
   font-variant-numeric: tabular-nums;
 }
 
 .quiet {
   margin: 0;
   font-size: 12.5px;
-  color: var(--helm-fg-subtle);
+  color: var(--floti-fg-subtle);
 }
 
 .state {

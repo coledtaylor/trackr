@@ -1,4 +1,4 @@
-/// <reference types="@coledtaylor/helm-plugin-sdk/global" />
+/// <reference types="@floti-dev/plugin-sdk/global" />
 /**
  * A project: its tasks as a list grouped by status, each group in
  * its own box, or as a board with a column per status. Filters by epic,
@@ -146,7 +146,7 @@ export function createProjectView(root, uid, host) {
       el(
         'button',
         {
-          class: 'helm-icon-button pj-settings',
+          class: 'floti-icon-button pj-settings',
           title: 'Name, colour and folders',
           attrs: { type: 'button', 'aria-label': `Edit ${project.name}: name, colour and folders` },
           on: { click: () => void openWorkflow(portfolio, project.uid) }
@@ -155,7 +155,7 @@ export function createProjectView(root, uid, host) {
       ),
       el(
         'button',
-        { class: 'helm-button', attrs: { type: 'button', 'data-variant': 'primary' }, on: { click: () => startTask() } },
+        { class: 'floti-button', attrs: { type: 'button', 'data-variant': 'primary' }, on: { click: () => startTask() } },
         [lineIcon(ICONS.plus, 13, 1.8), 'Task']
       )
     ]
@@ -201,7 +201,7 @@ export function createProjectView(root, uid, host) {
         state.epic = value
         draw()
       },
-      el('span', { class: 'work-noshrink', style: { display: 'flex', color: 'var(--helm-accent)' } }, [lineIcon(ICONS.epic, 11, 2)])
+      el('span', { class: 'work-noshrink', style: { display: 'flex', color: 'var(--floti-accent)' } }, [lineIcon(ICONS.epic, 11, 2)])
     )
     const prioritySelect = filterSelect(
       'Priority',
