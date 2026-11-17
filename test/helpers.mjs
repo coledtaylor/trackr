@@ -41,13 +41,13 @@ export function tempDir() {
  * port and a token in its environment. Resolves once it says it is serving,
  * with the line it said it on.
  *
- * @param {string} file what HELM_TRACKR_DB names
+ * @param {string} file what TRACKR_DB names
  * @param {{ token?: string, entry?: string }} [options] entry is the script, relative to the plugin's folder
  */
 export async function startService(file, { token = 'test-token', entry = 'service/main.mjs' } = {}) {
   const port = await freePort()
   const child = spawn(process.execPath, [fileURLToPath(new URL(`../${entry}`, import.meta.url))], {
-    env: { ...process.env, HELM_SERVICE_PORT: String(port), HELM_SERVICE_TOKEN: token, HELM_TRACKR_DB: file },
+    env: { ...process.env, FLOTI_SERVICE_PORT: String(port), FLOTI_SERVICE_TOKEN: token, TRACKR_DB: file },
     stdio: ['ignore', 'pipe', 'inherit']
   })
   const stdout = /** @type {import('node:stream').Readable} */ (child.stdout)

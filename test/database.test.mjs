@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { defaultDatabasePath } from '../service/main.mjs'
@@ -56,7 +56,7 @@ describe('an existing trackr.db at apiVersion 2', () => {
   const rpc = async (method, args) => {
     const response = await fetch(`http://127.0.0.1:${service.port}/rpc`, {
       method: 'POST',
-      headers: { 'helm-service-token': service.token },
+      headers: { 'floti-service-token': service.token },
       body: JSON.stringify({ method, args })
     })
     return /** @type {any} */ (await response.json()).result
@@ -92,45 +92,10 @@ describe('an existing trackr.db at apiVersion 2', () => {
     }
   })
 
-  describe('without HELM_TRACKR_DB', () => {
-    /** @type {{ dir: string, remove: () => void }} */
-    let home
-    before(() => {
-      home = tempDir()
-    })
-    after(() => home.remove())
-
-    /**
-     * A fresh home folder holding `files`, each made with its folders.
-     *
-     * @param {string} name
-     * @param {string[]} files
-     */
-    function homeWith(name, files) {
-      const dir = join(home.dir, name)
-      mkdirSync(dir)
-      for (const file of files) {
-        mkdirSync(join(dir, file, '..'), { recursive: true })
-        writeFileSync(join(dir, file), '')
-      }
-      return dir
-    }
-    const floti = join('.config', 'floti', 'data', 'trackr', 'trackr.db')
-    const helm = join('.config', 'helm', 'data', 'trackr', 'trackr.db')
-
+  describe('without TRACKR_DB', () => {
     test("the database is in Floti's config folder", () => {
-      const dir = homeWith('fresh', [])
-      assert.equal(defaultDatabasePath(dir), join(dir, floti))
-    })
-
-    test("it stays in Helm's config folder until Floti has moved that folder", () => {
-      const dir = homeWith('not moved', [helm])
-      assert.equal(defaultDatabasePath(dir), join(dir, helm))
-    })
-
-    test('once moved, a Helm folder made again later does not take it back', () => {
-      const dir = homeWith('moved', [floti, helm])
-      assert.equal(defaultDatabasePath(dir), join(dir, floti))
+      const home = join('home', 'someone')
+      assert.equal(defaultDatabasePath(home), join(home, '.config', 'floti', 'data', 'trackr', 'trackr.db'))
     })
   })
 })

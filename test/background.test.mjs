@@ -54,7 +54,7 @@ function standInFloti(service, send) {
       calls.push(`fetch ${url}`)
       if (!url.startsWith('service:/')) return Promise.reject(new Error(`${url} is not in the manifest's network`))
       const headers = new Headers(init.headers)
-      headers.set('helm-service-token', service.token)
+      headers.set('floti-service-token', service.token)
       return send(`http://127.0.0.1:${service.port}${url.slice('service:'.length)}`, { ...init, headers })
     },
     exec: needsClient('exec'),
@@ -217,7 +217,7 @@ describe('the background module at apiVersion 2', () => {
   const direct = async (name, args) => {
     const response = await globals.realFetch(`http://127.0.0.1:${service.port}/tool`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'helm-service-token': service.token },
+      headers: { 'content-type': 'application/json', 'floti-service-token': service.token },
       body: JSON.stringify({ name, args, session })
     })
     return /** @type {{ text: string }} */ (await response.json()).text
